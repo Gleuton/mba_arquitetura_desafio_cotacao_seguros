@@ -575,4 +575,71 @@ restaurar neles.
 
 ## 8. Tecnologias, custos e pessoal (TCO)
 
+Os números de partida são os do cenário do enunciado: R$ 0,04 por consulta, três consultas por
+cotação, 120.000 cotações por dia útil, R$ 0,25 cobrados da corretora por cotação entregue, 22 dias
+úteis no mês. Isso dá 2.640.000 cotações por mês, 7.920.000 consultas por mês sem cache, e uma receita
+de R$ 660.000 por mês, os mesmos números do enunciado.
 
+### A conta de parceiro
+
+| Cenário                                        | Hit rate assumido | Consultas compradas/mês | Custo mensal | Economia contra hoje | % da receita |
+|------------------------------------------------|-------------------|-------------------------|--------------|----------------------|--------------|
+| Hoje                                           | 0%                | 7.920.000               | R$ 316.800   | R$ 0                 | 48,0%        |
+| Conservador                                    | 20%               | 6.336.000               | R$ 253.440   | R$ 63.360            | 38,4%        |
+| Pressuposto principal (TTL de 1 hora, seção 1) | 30%               | 5.544.000               | R$ 221.760   | R$ 95.040            | 33,6%        |
+
+Os dois hit rates não vêm do gráfico de laboratório do `make reproduce` (que fica perto de 98% porque a
+carga padrão repete cinco cotações em 210 requisições): vêm do pressuposto de recotação da seção 1, o
+mesmo usado no cenário A da seção 7. Como o cache é por corretora (RF-07), a recotação da mesma placa
+por corretoras diferentes, que o enunciado cita como fonte de repetição, não gera acerto aqui: cada
+corretora tem sua própria entrada. Isso é consequência direta da decisão de isolamento da seção 4, e é
+por isso que o hit rate assumido (20 a 30%) é mais conservador do que seria com um cache compartilhado
+entre corretoras.
+
+### Custo de infraestrutura
+
+Redis gerenciado (instância pequena, o volume de chaves simultâneas fica na casa de poucos milhares,
+dado o TTL de 1 hora e o volume diário) e retenção de traces e métricas em produção (a 1 hora do
+Prometheus deste ambiente de desenvolvimento não serve para operação real): estimativa ilustrativa de
+R$ 200 e R$ 150 por mês, respectivamente, no provedor e região de referência da seção 5.
+
+O armazenamento de auditoria é diferente dos outros dois: ele não encolhe com o hit rate, porque a
+unidade é a **cotação apresentada**, não a consulta comprada, e uma cotação servida de cache continua
+sendo apresentada a um consumidor (RF-04). Quem dimensionasse o acervo pelas 5.544.000 consultas
+compradas por mês em vez das 2.640.000 cotações apresentadas erraria para baixo por um fator de 1,43
+(o inverso de 1 menos o hit rate de 30%).
+
+Com um registro de auditoria estimado em 2 KB por cotação (pedido, as cotações das três parceiras,
+metadados de rastreabilidade), a acumulação é:
+
+|              | Volume acumulado | Custo mensal do armazenamento (imutável, ilustrativo) |
+|--------------|------------------|-------------------------------------------------------|
+| Fim do ano 1 | ≈ 60,4 GB        | ≈ R$ 9,06                                             |
+| Fim do ano 5 | ≈ 302,1 GB       | ≈ R$ 45,32                                            |
+
+O valor em reais é pequeno em qualquer um dos dois anos, porque o volume de duas corretoras é modesto;
+o ponto não é o valor absoluto, é que essa conta cresce todo mês pelos cinco anos inteiros,
+independente de qualquer melhoria de hit rate, porque a obrigação é sobre o que foi apresentado, não
+sobre o que foi comprado.
+
+### Pessoal
+
+**Para construir** (a fatia desta entrega: breaker, cache, fallback, instrumentação de negócio): um
+engenheiro backend Go, com dedicação estimada de duas semanas, a um custo de referência ilustrativo de
+R$ 15.000 por mês carregado, ou aproximadamente R$ 7.500 pela dedicação parcial.
+
+**Para operar**: nenhum posto novo dedicado. Para o volume de duas corretoras e 120 mil cotações por
+dia útil, a operação (seguir os alertas e o runbook da seção 6) se soma ao plantão de engenharia já
+existente, de forma rotativa; o responsável pelo produto, já citado na gestão de mudanças do TTL
+(seção 6), segue sendo um papel, não uma contratação nova. Se o volume crescer de forma relevante, essa
+suposição precisa ser revisitada.
+
+### O veredito
+
+O cache se paga em menos de uma semana de operação. Com o hit rate do pressuposto principal (30%), a
+economia mensal (R$ 95.040) supera o custo de construção (≈ R$ 7.500) somado ao custo de
+infraestrutura recorrente (≈ R$ 359 no primeiro mês) em cerca de 2,4 dias de operação. Mesmo no
+cenário conservador (20% de hit rate, economia de R$ 63.360 por mês), o payback fica em torno de 3,6
+dias. A folga entre os dois cenários é grande o suficiente para o veredito não depender de o
+pressuposto de recotação da seção 1 estar exatamente certo: mesmo que a recotação real fique bem abaixo
+de 20%, a economia de consultas evitadas ainda paga o investimento dentro do primeiro mês.
