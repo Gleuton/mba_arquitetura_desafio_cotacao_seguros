@@ -494,7 +494,84 @@ custo de consultas compradas (seção 8). A mudança segue um caminho deliberado
 
 ## 7. Recuperação de desastres
 
+### RTO e RPO por classe de dado
 
+Perder cada uma destas classes custa uma coisa diferente, e por isso cada uma tem seu próprio alvo:
+
+| Classe de dado                                     | RTO                                                                   | RPO                                                                                                       | Por quê                                                                                                                                                  |
+|----------------------------------------------------|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Cache de cotação (Redis)                           | até 5 minutos (provisionar uma instância nova)                        | irrelevante na prática: nenhuma entrada é restaurada, o cache reaquece sozinho a partir do tráfego normal | é dado derivado, recriável a qualquer momento a partir das parceiras; perder tudo custa dinheiro (seção 8), não informação                               |
+| Registro de auditoria (cotação apresentada, SUSEP) | até 1 hora para restabelecer acesso de leitura dentro da mesma região | 0, nenhuma perda tolerada                                                                                 | é obrigação regulatória de 5 anos; a Prumo é operadora do dado da corretora, e um registro perdido é uma cotação que deixou de ser rastreável            |
+| Métricas e traces (observabilidade)                | minutos (redeploy do serviço)                                         | até 1 hora de métricas e a sessão de traces em curso                                                      | são efêmeros por desenho (Prometheus retém 1h sem volume, Jaeger guarda em memória); servem para operação em tempo real, não para decisão de longo prazo |
+| Estado do circuit breaker                          | segundos (reinicia junto do processo)                                 | irrelevante: o estado é recomputado a partir de chamadas reais                                            | vive na memória do processo por decisão desta entrega (limite conhecido da seção 4), nunca foi para ser persistido                                       |
+
+### Cenário A: o Redis inteiro se perde
+
+**O que a corretora vê.** Toda cotação passa a buscar as três parceiras de novo, porque não há mais
+cache para consultar; a resposta continua vindo (o breaker, o timeout e o fallback de resposta parcial
+continuam ativos), só que mais devagar, na faixa da RNF-01 (`p95` de até 4 s) em vez do tempo, tipicamente
+menor, de um acerto de cache.
+
+**O que degrada e o que para.** Degrada a latência e o custo. Nada para: a plataforma não fica
+indisponível, porque o Redis nunca foi parte do caminho obrigatório de resposta, só uma forma de
+evitar refazer a consulta.
+
+**Quanto custa.** Sob o pressuposto de recotação desta arquitetura (30% das cotações se repetem dentro
+do TTL de 1 hora, pressuposto a formalizar na seção 1), o custo normal de parceiro é de 360.000 vezes
+0,70 vezes R$ 0,04, ou seja, R$ 10.080 por dia útil. Sem cache, esse custo volta a R$ 14.400 por dia
+útil (360.000 vezes R$ 0,04): um custo extra de R$ 4.320 por dia útil enquanto o Redis estiver fora.
+
+**Qual efeito chega primeiro.** O custo chega primeiro e é garantido: a partir do instante em que o
+Redis cai, todo acerto que seria cache vira uma compra. O colapso da `partner-degrading` (que afunda
+acima de 5 chamadas simultâneas) só chega se a perda do Redis coincidir com um pico de tráfego
+concorrente; quando chega, é imediato, porque a degradação dela é função da concorrência do momento,
+não de algo que se acumula ao longo do tempo. Em tráfego baixo, o segundo efeito pode nunca aparecer;
+em tráfego de pico, os dois efeitos ficam visíveis quase juntos.
+
+**Caminho de volta.** Provisionar uma instância nova de Redis (não há dados para restaurar, porque o
+Redis deste ambiente já sobe sem persistência de propósito). Assim que `internal/resilience/cache.go`
+volta a conseguir escrever, o cache reaquece sozinho com o tráfego normal, sem necessidade de
+aquecimento manual.
+
+### Cenário B: uma parceira fica fora por seis horas
+
+**O que a corretora vê.** Nos primeiros minutos, ainda vê as três cotações, servidas parte ao vivo,
+parte de cache (RF-06). Depois que o circuito abre (dentro do limiar de 5 falhas consecutivas) e o
+cache dessa parceira ultrapassa 1 hora sem renovação, a corretora passa a ver só duas cotações, com o
+nome da terceira na lista de ausentes (RF-05).
+
+**O que degrada e o que para.** Degrada o número de opções para comparar. Nada para: a plataforma
+segue respondendo `200` durante as seis horas inteiras.
+
+**Quanto custa.** O breaker aberto evita a chamada à parceira fora, o que economiza, não custa: supondo
+tráfego uniforme ao longo do dia, 120.000 cotações por dia útil equivalem a 30.000 cotações nas seis
+horas do cenário, e cada uma evita uma consulta de R$ 0,04 àquela parceira, R$ 1.200 economizados no
+período. O custo real deste cenário não está no caixa: a Prumo continua cobrando da corretora o mesmo
+R$ 0,25 por cotação entregue enquanto entrega um produto com uma opção a menos, o que é risco comercial
+e reputacional, não uma linha quantificável nesta planilha.
+
+**Caminho de volta.** Autônomo, sem ação manual: quando a parceira volta a responder, as duas
+requisições de teste do meio aberto (seção 4) tentam fechar o circuito; se as duas tiverem sucesso, o
+circuito fecha e a parceira volta a aparecer nas respostas normalmente.
+
+### Cenário C: perda do site ou da região
+
+**O que a corretora vê.** Indisponibilidade total: sem resposta nenhuma, até o failover terminar. É o
+único dos três cenários em que algo realmente para.
+
+**O que degrada e o que para.** Para tudo: `POST /quotes` fica fora do ar até a região secundária
+assumir. Nada degrada, porque não há meio termo aqui.
+
+**Quanto custa.** Cada hora de indisponibilidade custa, em receita não realizada, aproximadamente
+120.000 dividido por 24, vezes R$ 0,25, ou seja, cerca de R$ 1.250 por hora (mesmo pressuposto de
+tráfego uniforme do cenário B), fora o custo reputacional, que este SAD não tenta quantificar.
+
+**Caminho de volta.** Failover para a região secundária, redirecionamento de DNS ou roteamento, e
+reconexão ao armazenamento de auditoria. Para o RPO de 0 da auditoria (tabela acima) sobreviver a este
+cenário, o armazenamento imutável da decisão de hospedagem (seção 5) precisa de replicação entre
+regiões, não só de imutabilidade dentro de uma região; isso estende a decisão da seção 5 e deve ser
+lido em conjunto com ela. Cache e estado de circuito voltam vazios, como no cenário A: não há nada para
+restaurar neles.
 
 ## 8. Tecnologias, custos e pessoal (TCO)
 
