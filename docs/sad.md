@@ -172,13 +172,13 @@ um breaker que só conta erro nunca abre para ela, então o timeout precisa cont
 **Escolha.** Um circuito por parceira (`sony/gobreaker` v2, que expõe `StateClosed`, `StateOpen` e
 `StateHalfOpen` nomeados na própria API), com os parâmetros:
 
-| Parâmetro | Valor | Por quê |
-|---|---|---|
-| Limiar de abertura | 5 falhas consecutivas | Na simulação contra os 210 pedidos do `make reproduce` (`cmd/partner-mock/feasibility_test.go`), esse limiar abre na requisição 42 e permanece estável (7 aberturas, 2 recuperações), contra 13 aberturas e 4 recuperações de um limiar de 3, que reage rápido mas oscila mais |
-| Timeout por chamada | 2000 ms | Cobre a `partner-slow` (1500 ms mais até 200 ms de jitter) com folga, e corta a `partner-degrading` bem antes do teto de 6000 ms dela |
-| Timeout conta como falha | sim | É o que faz a lentidão da `partner-degrading` virar sinal para o contador; sem isso, ela nunca abriria o próprio circuito |
-| Tempo aberto até permitir teste | 5 s | Suficiente para uma rajada de falhas conhecida da `partner-flaky` (9 falhas em cerca de 1,5 s de tempo real) terminar, e para o volume em voo da `partner-degrading` drenar (cada chamada presa dura no máximo os 2000 ms do timeout) |
-| Requisições permitidas no meio aberto | 2, ambas precisam ter sucesso para fechar | Uma falha entre as duas reabre o circuito imediatamente; exigir duas evita fechar de novo com base em um único sucesso de sorte |
+| Parâmetro                             | Valor                                     | Por quê                                                                                                                                                                                                                                                                        |
+|---------------------------------------|-------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Limiar de abertura                    | 5 falhas consecutivas                     | Na simulação contra os 210 pedidos do `make reproduce` (`cmd/partner-mock/feasibility_test.go`), esse limiar abre na requisição 42 e permanece estável (7 aberturas, 2 recuperações), contra 13 aberturas e 4 recuperações de um limiar de 3, que reage rápido mas oscila mais |
+| Timeout por chamada                   | 2000 ms                                   | Cobre a `partner-slow` (1500 ms mais até 200 ms de jitter) com folga, e corta a `partner-degrading` bem antes do teto de 6000 ms dela                                                                                                                                          |
+| Timeout conta como falha              | sim                                       | É o que faz a lentidão da `partner-degrading` virar sinal para o contador; sem isso, ela nunca abriria o próprio circuito                                                                                                                                                      |
+| Tempo aberto até permitir teste       | 5 s                                       | Suficiente para uma rajada de falhas conhecida da `partner-flaky` (9 falhas em cerca de 1,5 s de tempo real) terminar, e para o volume em voo da `partner-degrading` drenar (cada chamada presa dura no máximo os 2000 ms do timeout)                                          |
+| Requisições permitidas no meio aberto | 2, ambas precisam ter sucesso para fechar | Uma falha entre as duas reabre o circuito imediatamente; exigir duas evita fechar de novo com base em um único sucesso de sorte                                                                                                                                                |
 
 **Consequências, inclusive as ruins.** Um limiar de 5 falhas consecutivas é mais lento a reagir que um
 de 3: até quatro respostas ruins chegam à corretora antes do circuito abrir. O escopo por parceira não
@@ -188,7 +188,7 @@ aprende sozinha que uma parceira caiu, sem estado compartilhado (segundo limite 
 
 ### Decisão 2: cache
 
-**Contexto.** Cada consulta a uma parceira custa R$ 0,04, e são 360 mil consultas por dia útil. As
+**Contexto.** Cada consulta a uma parceira custa R\$ 0,04, e são 360 mil consultas por dia útil. As
 seguradoras honram o prêmio informado por até 24 horas (o teto comercial); o campo
 `valid_for_seconds` que as parceiras devolvem (`PARTNER_QUOTE_TTL_SECONDS`, 300 s por padrão) é um TTL
 técnico do mock, não o teto de negócio, e os dois não podem ser confundidos. Uma chave sem `tenant_id`
@@ -518,8 +518,8 @@ evitar refazer a consulta.
 
 **Quanto custa.** Sob o pressuposto de recotação desta arquitetura (30% das cotações se repetem dentro
 do TTL de 1 hora, pressuposto a formalizar na seção 1), o custo normal de parceiro é de 360.000 vezes
-0,70 vezes R$ 0,04, ou seja, R$ 10.080 por dia útil. Sem cache, esse custo volta a R$ 14.400 por dia
-útil (360.000 vezes R$ 0,04): um custo extra de R$ 4.320 por dia útil enquanto o Redis estiver fora.
+0,70 vezes R\$ 0,04, ou seja, R\$ 10.080 por dia útil. Sem cache, esse custo volta a R\$ 14.400 por dia
+útil (360.000 vezes R\$ 0,04): um custo extra de R\$ 4.320 por dia útil enquanto o Redis estiver fora.
 
 **Qual efeito chega primeiro.** O custo chega primeiro e é garantido: a partir do instante em que o
 Redis cai, todo acerto que seria cache vira uma compra. O colapso da `partner-degrading` (que afunda
@@ -545,9 +545,9 @@ segue respondendo `200` durante as seis horas inteiras.
 
 **Quanto custa.** O breaker aberto evita a chamada à parceira fora, o que economiza, não custa: supondo
 tráfego uniforme ao longo do dia, 120.000 cotações por dia útil equivalem a 30.000 cotações nas seis
-horas do cenário, e cada uma evita uma consulta de R$ 0,04 àquela parceira, R$ 1.200 economizados no
+horas do cenário, e cada uma evita uma consulta de R\$ 0,04 àquela parceira, R\$ 1.200 economizados no
 período. O custo real deste cenário não está no caixa: a Prumo continua cobrando da corretora o mesmo
-R$ 0,25 por cotação entregue enquanto entrega um produto com uma opção a menos, o que é risco comercial
+R\$ 0,25 por cotação entregue enquanto entrega um produto com uma opção a menos, o que é risco comercial
 e reputacional, não uma linha quantificável nesta planilha.
 
 **Caminho de volta.** Autônomo, sem ação manual: quando a parceira volta a responder, as duas
@@ -563,7 +563,7 @@ circuito fecha e a parceira volta a aparecer nas respostas normalmente.
 assumir. Nada degrada, porque não há meio termo aqui.
 
 **Quanto custa.** Cada hora de indisponibilidade custa, em receita não realizada, aproximadamente
-120.000 dividido por 24, vezes R$ 0,25, ou seja, cerca de R$ 1.250 por hora (mesmo pressuposto de
+120.000 dividido por 24, vezes R\$ 0,25, ou seja, cerca de R\$ 1.250 por hora (mesmo pressuposto de
 tráfego uniforme do cenário B), fora o custo reputacional, que este SAD não tenta quantificar.
 
 **Caminho de volta.** Failover para a região secundária, redirecionamento de DNS ou roteamento, e
@@ -575,18 +575,18 @@ restaurar neles.
 
 ## 8. Tecnologias, custos e pessoal (TCO)
 
-Os números de partida são os do cenário do enunciado: R$ 0,04 por consulta, três consultas por
-cotação, 120.000 cotações por dia útil, R$ 0,25 cobrados da corretora por cotação entregue, 22 dias
+Os números de partida são os do cenário do enunciado: R\$ 0,04 por consulta, três consultas por
+cotação, 120.000 cotações por dia útil, R\$ 0,25 cobrados da corretora por cotação entregue, 22 dias
 úteis no mês. Isso dá 2.640.000 cotações por mês, 7.920.000 consultas por mês sem cache, e uma receita
-de R$ 660.000 por mês, os mesmos números do enunciado.
+de R\$ 660.000 por mês, os mesmos números do enunciado.
 
 ### A conta de parceiro
 
 | Cenário                                        | Hit rate assumido | Consultas compradas/mês | Custo mensal | Economia contra hoje | % da receita |
 |------------------------------------------------|-------------------|-------------------------|--------------|----------------------|--------------|
-| Hoje                                           | 0%                | 7.920.000               | R$ 316.800   | R$ 0                 | 48,0%        |
-| Conservador                                    | 20%               | 6.336.000               | R$ 253.440   | R$ 63.360            | 38,4%        |
-| Pressuposto principal (TTL de 1 hora, seção 1) | 30%               | 5.544.000               | R$ 221.760   | R$ 95.040            | 33,6%        |
+| Hoje                                           | 0%                | 7.920.000               | R\$ 316.800  | R\$ 0                | 48,0%        |
+| Conservador                                    | 20%               | 6.336.000               | R\$ 253.440  | R\$ 63.360           | 38,4%        |
+| Pressuposto principal (TTL de 1 hora, seção 1) | 30%               | 5.544.000               | R\$ 221.760  | R\$ 95.040           | 33,6%        |
 
 Os dois hit rates não vêm do gráfico de laboratório do `make reproduce` (que fica perto de 98% porque a
 carga padrão repete cinco cotações em 210 requisições): vêm do pressuposto de recotação da seção 1, o
@@ -601,7 +601,7 @@ entre corretoras.
 Redis gerenciado (instância pequena, o volume de chaves simultâneas fica na casa de poucos milhares,
 dado o TTL de 1 hora e o volume diário) e retenção de traces e métricas em produção (a 1 hora do
 Prometheus deste ambiente de desenvolvimento não serve para operação real): estimativa ilustrativa de
-R$ 200 e R$ 150 por mês, respectivamente, no provedor e região de referência da seção 5.
+R\$ 200 e R\$ 150 por mês, respectivamente, no provedor e região de referência da seção 5.
 
 O armazenamento de auditoria é diferente dos outros dois: ele não encolhe com o hit rate, porque a
 unidade é a **cotação apresentada**, não a consulta comprada, e uma cotação servida de cache continua
@@ -614,8 +614,8 @@ metadados de rastreabilidade), a acumulação é:
 
 |              | Volume acumulado | Custo mensal do armazenamento (imutável, ilustrativo) |
 |--------------|------------------|-------------------------------------------------------|
-| Fim do ano 1 | ≈ 60,4 GB        | ≈ R$ 9,06                                             |
-| Fim do ano 5 | ≈ 302,1 GB       | ≈ R$ 45,32                                            |
+| Fim do ano 1 | ≈ 60,4 GB        | ≈ R\$ 9,06                                            |
+| Fim do ano 5 | ≈ 302,1 GB       | ≈ R\$ 45,32                                           |
 
 O valor em reais é pequeno em qualquer um dos dois anos, porque o volume de duas corretoras é modesto;
 o ponto não é o valor absoluto, é que essa conta cresce todo mês pelos cinco anos inteiros,
@@ -626,7 +626,7 @@ sobre o que foi comprado.
 
 **Para construir** (a fatia desta entrega: breaker, cache, fallback, instrumentação de negócio): um
 engenheiro backend Go, com dedicação estimada de duas semanas, a um custo de referência ilustrativo de
-R$ 15.000 por mês carregado, ou aproximadamente R$ 7.500 pela dedicação parcial.
+R\$ 15.000 por mês carregado, ou aproximadamente R\$ 7.500 pela dedicação parcial.
 
 **Para operar**: nenhum posto novo dedicado. Para o volume de duas corretoras e 120 mil cotações por
 dia útil, a operação (seguir os alertas e o runbook da seção 6) se soma ao plantão de engenharia já
@@ -637,9 +637,9 @@ suposição precisa ser revisitada.
 ### O veredito
 
 O cache se paga em menos de uma semana de operação. Com o hit rate do pressuposto principal (30%), a
-economia mensal (R$ 95.040) supera o custo de construção (≈ R$ 7.500) somado ao custo de
-infraestrutura recorrente (≈ R$ 359 no primeiro mês) em cerca de 2,4 dias de operação. Mesmo no
-cenário conservador (20% de hit rate, economia de R$ 63.360 por mês), o payback fica em torno de 3,6
+economia mensal (R\$ 95.040) supera o custo de construção (≈ R\$ 7.500) somado ao custo de
+infraestrutura recorrente (≈ R\$ 359 no primeiro mês) em cerca de 2,4 dias de operação. Mesmo no
+cenário conservador (20% de hit rate, economia de R\$ 63.360 por mês), o payback fica em torno de 3,6
 dias. A folga entre os dois cenários é grande o suficiente para o veredito não depender de o
 pressuposto de recotação da seção 1 estar exatamente certo: mesmo que a recotação real fique bem abaixo
 de 20%, a economia de consultas evitadas ainda paga o investimento dentro do primeiro mês.
