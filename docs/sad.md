@@ -604,10 +604,16 @@ entre corretoras.
 
 ### Custo de infraestrutura
 
-Redis gerenciado (instância pequena, o volume de chaves simultâneas fica na casa de poucos milhares,
-dado o TTL de 1 hora e o volume diário) e retenção de traces e métricas em produção (a 1 hora do
-Prometheus deste ambiente de desenvolvimento não serve para operação real): estimativa ilustrativa de
-R\$ 200 e R\$ 150 por mês, respectivamente, no provedor e região de referência da seção 5.
+**Redis**: 1 instância gerenciada de menor porte (referência ilustrativa: `cache.t4g.micro`, cerca de
+0,5 GiB de memória, na região de referência da seção 5), estimativa de R\$ 200 por mês. Esse porte
+sobra para o volume esperado: o TTL de 1 hora e o tráfego diário mantêm a casa de poucos milhares de
+chaves simultâneas, cada uma um JSON de algumas centenas de bytes.
+
+**Observabilidade em produção**: 1 instância de cômputo pequena (referência ilustrativa: `t4g.small`)
+rodando o mesmo Prometheus e Jaeger deste compose, agora com volume persistente e retenção de 15 dias
+em vez da 1 hora sem volume deste ambiente de desenvolvimento, estimativa de R\$ 150 por mês. Os
+mesmos dois contêineres do `docker-compose.yml`, só com disco e uma janela de retenção compatível com
+investigar um incidente que apareceu há alguns dias, não só o que está acontecendo agora.
 
 O armazenamento de auditoria é diferente dos outros dois: ele não encolhe com o hit rate, porque a
 unidade é a **cotação apresentada**, não a consulta comprada, e uma cotação servida de cache continua
