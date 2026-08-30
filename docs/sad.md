@@ -414,7 +414,83 @@ nenhum valor em reais é inventado nesta seção.
 
 ## 6. Operação e gestão de mudanças
 
+Os nomes de métrica e de atributo desta seção são propostas, nascem junto com o `internal/resilience/`
+da seção 4 e ainda não existem no repositório.
 
+### O que se olha
+
+| Métrica | Tipo | Rótulos | O que mostra |
+|---|---|---|---|
+| `partner_breaker_state` | gauge | `partner` | estado atual do circuito (0 fechado, 1 aberto, 2 meio aberto) |
+| `partner_breaker_transitions_total` | contador | `partner`, `from`, `to` | quantas vezes o circuito mudou de estado, e entre quais estados |
+| `partner_cache_result_total` | contador | `partner`, `result` (`hit` ou `miss`) | acertos e erros do cache, base do hit rate |
+| `http_client_request_duration_seconds` | histograma (já existe) | `server_address` | latência por parceira, reaproveitada da borda HTTP (`internal/platform/telemetry.go`) |
+
+As duas marcações de trace: um atributo `partner.circuit_breaker.short_circuited` (verdadeiro) no span
+da chamada evitada por circuito aberto, e um atributo `quotation.cache_hit` (verdadeiro) no span da
+requisição servida de cache. Nenhum dos dois carrega CPF, placa ou `quote_id`.
+
+### Alertas
+
+| Métrica | Limiar | Ação |
+|---|---|---|
+| `partner_breaker_state{partner="X"}` | igual a 1 (aberto) por mais de 5 minutos contínuos | Página o plantonista; segue o runbook abaixo |
+| `sum(rate(partner_cache_result_total{result="hit"}[15m])) / sum(rate(partner_cache_result_total[15m]))` | abaixo de 10% por 30 minutos | Verificar se o Redis está acessível e se `internal/resilience/cache.go` está de fato sendo chamado; um hit rate assim baixo é sinal de cache quebrado, não de tráfego naturalmente disperso (mesmo estimativas conservadoras de recotação da seção 1 ficam bem acima disso) |
+| `histogram_quantile(0.95, sum by (server_address, le) (rate(http_client_request_duration_seconds_bucket[5m])))` | acima de 1800 ms (90% do timeout de 2000 ms) para uma parceira, por 5 minutos | Verificar se é a `partner-degrading` sob concorrência alta (comportamento esperado) ou uma mudança de comportamento em outra parceira; aviso antecipado, antes do circuito abrir |
+
+### Runbook: o breaker de uma parceira está aberto há dez minutos
+
+**Sintoma.** O alerta de `partner_breaker_state` disparou para uma parceira (por exemplo,
+`partner-degrading`) e já passou de dez minutos no estado aberto.
+
+**O que o plantonista faz.**
+1. Confirma no Prometheus que o circuito está realmente aberto agora
+   (`partner_breaker_state{partner="partner-degrading"}`), e olha o histórico de
+   `partner_breaker_transitions_total` para saber se está parado aberto ou oscilando entre aberto e
+   meio aberto.
+2. Confirma no Jaeger, num trace recente dessa parceira, que não existe mais span de saída para ela e
+   que o span da requisição carrega o atributo `partner.circuit_breaker.short_circuited`. É a prova de
+   que o circuito está de fato evitando a chamada, não só reportando estado.
+3. Olha `histogram_quantile(0.95, ...)` da parceira (mesma consulta do terceiro alerta) para saber se a
+   causa é concorrência alta (esperado na `partner-degrading`, acima de 5 chamadas simultâneas) ou algo
+   novo.
+4. Confirma que a disponibilidade percebida pela corretora (RNF-02, proporção de respostas não-502)
+   continua dentro do alvo, ou seja, que o fallback da seção 4 está de fato cobrindo a ausência dessa
+   parceira.
+
+**O que o plantonista não faz.**
+- Não reinicia o `quotation-api` para "resetar" o circuito: o estado vive na memória do processo (limite
+  conhecido da seção 4), e reiniciar reabre uma janela de chamadas diretas exatamente contra a parceira
+  que está com problema, sem nenhum ganho real.
+- Não muda o limiar de falhas nem desliga o breaker manualmente sem seguir a gestão de mudanças abaixo.
+- Não força o fechamento do circuito sem confirmar, fora da plataforma (contato com a seguradora, ou o
+  endpoint `/healthz` dela, se acessível), que ela de fato voltou a responder normalmente.
+
+**Quando escala.**
+- Se o circuito continua aberto por mais de 30 minutos, escala para o time responsável pela integração
+  com aquela seguradora: só um contato comercial ou técnico direto com ela confirma a causa raiz.
+- Se a disponibilidade percebida pela corretora (RNF-02) cai abaixo do alvo mesmo com o fallback ativo,
+  escala imediatamente para engenharia: é sinal de que o fallback também não está cobrindo o cenário
+  (por exemplo, cache também vazio para essa parceira).
+
+### Gestão de mudanças: o TTL do cache
+
+O TTL é parâmetro de negócio, não de engenharia: ele mexe no risco de servir um preço vencido e no
+custo de consultas compradas (seção 8). A mudança segue um caminho deliberado:
+
+- **Quem aprova.** O responsável pelo produto Prumo Cota decide o valor, com validação técnica da
+  engenharia sobre o efeito esperado no hit rate e na latência.
+- **Como chega em produção.** O TTL é uma variável de ambiente nova (por exemplo,
+  `CACHE_TTL_SECONDS`), lida em `internal/platform/config.go` no mesmo padrão que as demais
+  configurações do arquivo: constante de default, função de parsing dedicada, erro nomeando a variável.
+  Mudar o valor é um redeploy com a variável nova, sem rebuild do binário.
+- **Como se reverte.** Redeploy com o valor anterior. Como o TTL do Redis é fixado no momento do
+  `SET` (não recalculado quando a configuração muda), reverter não afeta as entradas já gravadas com o
+  TTL antigo, só as novas.
+- **Como se mede se melhorou.** Compara o hit rate de produção (seção 8) antes e depois, na mesma
+  janela do dia (para controlar variação de tráfego), e confere se a proporção de respostas marcadas
+  como vindas de cache antigo (idade próxima do TTL, ver RF-06) não subiu de forma a sugerir risco de
+  preço vencido maior do que o aceitável.
 
 ## 7. Recuperação de desastres
 
