@@ -572,12 +572,17 @@ assumir. Nada degrada, porque não há meio termo aqui.
 120.000 dividido por 24, vezes R\$ 0,25, ou seja, cerca de R\$ 1.250 por hora (mesmo pressuposto de
 tráfego uniforme do cenário B), fora o custo reputacional, que este SAD não tenta quantificar.
 
-**Caminho de volta.** Failover para a região secundária, redirecionamento de DNS ou roteamento, e
-reconexão ao armazenamento de auditoria. Para o RPO de 0 da auditoria (tabela acima) sobreviver a este
-cenário, o armazenamento imutável da decisão de hospedagem (seção 5) precisa de replicação entre
-regiões, não só de imutabilidade dentro de uma região; isso estende a decisão da seção 5 e deve ser
-lido em conjunto com ela. Cache e estado de circuito voltam vazios, como no cenário A: não há nada para
-restaurar neles.
+**Caminho de volta, com RTO.** A decisão de hospedagem da seção 5 não descreve um site secundário
+quente, sempre no ar; é um site frio, provisionado só quando este cenário acontece, porque manter uma
+cópia ativa o tempo todo não se justifica para o porte de duas corretoras deste cenário. O RTO
+estimado é de até 4 horas, em quatro etapas: até 30 minutos para detectar e confirmar a decisão de
+failover (não é automático); até 2 horas para provisionar os mesmos contêineres deste
+`docker-compose.yml` na região secundária; até 1 hora para redirecionar DNS ou roteamento e para a
+propagação alcançar os clientes; até 30 minutos para verificar a saúde do ambiente antes de reabrir o
+tráfego. Para o RPO de 0 da auditoria (tabela acima) sobreviver a este cenário, o armazenamento
+imutável da decisão de hospedagem (seção 5) precisa de replicação entre regiões, não só de
+imutabilidade dentro de uma região; isso estende a decisão da seção 5 e deve ser lido em conjunto com
+ela. Cache e estado de circuito voltam vazios, como no cenário A: não há nada para restaurar neles.
 
 ## 8. Tecnologias, custos e pessoal (TCO)
 
