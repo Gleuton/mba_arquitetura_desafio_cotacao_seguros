@@ -213,8 +213,9 @@ errado.
   servir um prêmio que a seguradora já não honra mais, sem nenhuma margem de segurança.
 
 **Escolha.** Cache por parceira, TTL de 1 hora (abaixo do teto de 24 horas, acima do TTL técnico do
-mock, sob o pressuposto, a validar na seção 1, de que uma parcela relevante das recotações da mesma
-venda acontece dentro dessa janela). A chave, por extenso:
+mock, sob o pressuposto, a formalizar na seção 1, de que aproximadamente 30% das recotações da mesma
+venda acontecem dentro dessa janela, o mesmo número usado no cenário A da seção 7 e na conta de
+parceiro da seção 8). A chave, por extenso:
 
 ```
 quote:v1:{tenant_id}:{partner_name}:{sha256(document|birth_year|plate|model|year|value_cents|coverage)[:16]}
