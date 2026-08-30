@@ -331,7 +331,86 @@ construção de `partner.NewClient()` isolado pela composição `resilient.New(c
 
 ## 5. Implementação
 
+### Como se constrói
 
+| Mecanismo | Arquivo | Situação |
+|---|---|---|
+| Timeout de 2000 ms | `internal/partner/client.go` (`NewClient`, campo `Timeout` do `http.Client`) | existe, muda |
+| Circuit breaker por parceira | `internal/resilience/quoter.go` | proposto |
+| Cliente Redis (leitura, escrita, `EXPIRE`) | `internal/resilience/cache.go` | proposto |
+| Montagem da resposta parcial e degradada | `internal/quotation/service.go` | existe, muda |
+| Contrato de resposta (`Response`, `Quote`) | `internal/quotation/request.go` | existe, muda |
+| Wiring (troca de `partner.NewClient()` pelo decorator) | `cmd/quotation-api/main.go` | existe, muda |
+| Novos parâmetros de configuração (timeout, limiar, TTL) | `internal/platform/config.go` | existe, muda |
+
+Duas bibliotecas novas, nenhuma redigida por mim antes de justificar:
+
+- **`sony/gobreaker` v2**, para o circuit breaker. Nomeia os três estados na própria API
+  (`StateClosed`, `StateOpen`, `StateHalfOpen`) e expõe `ReadyToTrip` (onde entra o limiar de 5 falhas
+  consecutivas), `Timeout` (o tempo aberto até o meio aberto) e `OnStateChange` (o gancho para emitir a
+  métrica de transição da seção 6), sem trazer retry, bulkhead ou rate limiting embutidos, que estão
+  fora do escopo desta entrega. É essa API, e não a quantidade de estrelas no repositório, que decide a
+  escolha.
+- **`github.com/redis/go-redis/v9`**, para falar com o Redis que já sobe no compose. Cliente oficial da
+  comunidade Go para Redis, com suporte nativo aos comandos `GET`, `SET` com TTL e `EXPIRE` que a
+  decisão de cache da seção 4 usa, e com um pacote de instrumentação (`redisotel`) que se liga ao mesmo
+  `TracerProvider`/`MeterProvider` globais que `internal/platform/telemetry.go` já inicializa, sem exigir
+  nenhuma mudança nesse arquivo.
+
+### Como se testa sem depender de sorte
+
+No padrão de `cmd/partner-mock/feasibility_test.go`: nenhum teste do breaker, do cache ou do fallback
+usa `sleep` ou espera que uma chamada de rede real aconteça no momento certo.
+
+- **Breaker.** Um `Quoter` de teste (dublê, não a implementação real de `internal/partner/client.go`)
+  devolve uma sequência fixa de sucessos e falhas; o teste verifica que a transição para `StateOpen`
+  acontece exatamente na quinta falha consecutiva, que nenhuma chamada adicional ao dublê acontece
+  enquanto o circuito está aberto, e que duas chamadas de sucesso seguidas no meio aberto fecham o
+  circuito de novo. Um segundo teste, de integração, roda contra o `partner-flaky` real do compose e
+  confirma que o circuito abre dentro da rajada conhecida de 9 falhas nas sequências 49 a 57
+  (`cmd/partner-mock/feasibility_test.go` já prova que essa rajada existe; o teste novo prova que o
+  breaker reage a ela).
+- **Cache e TTL.** O componente de cache recebe um relógio injetado (uma interface com um método
+  `Now()`), em vez de chamar `time.Now()` diretamente. O teste escreve uma entrada, avança o relógio
+  fake para além de 1 hora sem esperar tempo real nenhum, e confirma que a leitura seguinte é um miss.
+- **Fallback.** Com o breaker de uma parceira forçado a `StateOpen` pelo dublê acima e uma entrada de
+  cache conhecida no relógio fake, o teste confirma que a resposta final contém a cotação de cache
+  marcada com a idade certa, e que, sem entrada de cache, a parceira aparece na lista de ausentes em vez
+  de a resposta inteira falhar.
+
+### Onde roda
+
+**Contexto.** A SUSEP exige retenção de auditoria de cinco anos, imutável; a LGPD exige residência e
+segregação de dado pessoal (CPF, placa) e a Prumo é operadora, não controladora, dos dados da
+corretora. O ambiente de desenvolvimento é local, via Docker Compose, e continua sendo depois desta
+decisão: o que muda é só onde os mesmos contêineres rodam em produção.
+
+**Opções consideradas.**
+- Cloud pública, sem exigência contratual de região. Mais simples e barata de operar, mas expõe a
+  Prumo a transferência internacional de CPF e placa sem base legal clara sob a LGPD.
+- On-premise, datacenter próprio. Resolve residência de dados por completo, mas exige capex de
+  infraestrutura e uma equipe de operação incompatíveis com o porte de duas corretoras e 120 mil
+  cotações por dia útil descrito no cenário.
+- Híbrido: os mesmos contêineres deste compose (`quotation-api`, `redis`, `otel-collector`, `jaeger`,
+  `prometheus`) rodando numa região de cloud com garantia contratual de residência no Brasil (por
+  exemplo, AWS `sa-east-1`), e o armazenamento de auditoria de cinco anos num serviço de objeto com
+  trava de imutabilidade (*object lock*, modo WORM) na mesma região.
+
+**Escolha.** Híbrido, como descrito na terceira opção. O nome do provedor e da região é ilustrativo,
+para dar à seção 8 um preço de referência real; a decisão que este SAD defende é o modelo (cloud com
+residência garantida mais armazenamento imutável), não o fornecedor específico.
+
+**Consequências, inclusive as ruins.** O custo de armazenamento com imutabilidade é maior que o de
+armazenamento padrão, e cresce todo mês ao longo de cinco anos (a conta está na seção 8). Depender de
+uma única região de um único provedor concentra risco de fornecedor que os três cenários de desastre
+obrigatórios da seção 7 (Redis perdido, parceira fora, perda de site ou região) não cobrem sozinhos:
+perder o provedor inteiro é um cenário à parte, fora do escopo desta entrega. E rodar em cloud gerida
+significa aceitar o modelo de responsabilidade compartilhada dela para a parte de infraestrutura, o que
+desloca, mas não elimina, o trabalho de operação.
+
+Os itens de custo que esta decisão introduz (cômputo do `quotation-api`, Redis gerido, retenção de
+traces e métricas, armazenamento imutável de auditoria) são listados aqui e precificados na seção 8;
+nenhum valor em reais é inventado nesta seção.
 
 ## 6. Operação e gestão de mudanças
 
