@@ -2,7 +2,79 @@
 
 ## 1. Introdução
 
+### Propósito
 
+Este documento descreve a arquitetura da Prumo Cota depois da intervenção desta entrega: circuit
+breaker, cache e fallback na fronteira com as três seguradoras parceiras, mais a instrumentação que
+prova que os três mecanismos funcionam. Ele sustenta quatro decisões que a Entrega 2 implementa sem
+margem para inventar parâmetro: o escopo e os limiares do circuit breaker, a chave e o TTL do cache, o
+formato da resposta degradada do fallback, e onde a plataforma roda (seções 4 e 5).
+
+Serve a três leitores. O CTO da Prumo, que decide se aprova o gasto e quer ver a conta (seção 8). Quem
+opera a plataforma às 3h da manhã e precisa saber o que fazer quando uma parceira afunda (seção 6). E o
+encarregado de dados e auditoria, que precisa provar à ANPD e à SUSEP que a cotação servida de cache
+continua rastreável e que uma corretora nunca vê o dado de outra (seções 4 e 7).
+
+### Escopo
+
+Cobre a plataforma de cotação (`quotation-api`) e a fronteira dela com as três seguradoras parceiras
+(`partner-slow`, `partner-flaky`, `partner-degrading`): o circuit breaker e o timeout em
+`internal/partner/client.go`, o cache e o fallback em `internal/quotation/service.go`, e a
+instrumentação de negócio que prova os três. Não cobre, porque está fora da fronteira da Prumo: o
+motor de precificação de cada seguradora, que gera o prêmio e permanece opaco e fora do controle da
+Prumo, nem o CRM ou qualquer sistema da corretora que consome a API.
+
+Dentro dessa fronteira, ficam fora do escopo desta entrega, porque o próprio README pede: retry com
+backoff, bulkhead, rate limiting, fila, autenticação e Kubernetes; persistência real de auditoria (é
+decisão de arquitetura na seção 8, não uma tabela implementada); garantia transacional entre cache e
+parceira; paralelização da agregação (bônus opcional, não implementado); e qualquer integração real com
+seguradora, já que as três parceiras seguem sendo mocks.
+
+### Restrições e decisões
+
+O que é imposto, e não pode ser negociado nesta entrega:
+
+- Go 1.25, Docker Compose, Redis e OpenTelemetry como tecnologias obrigatórias.
+- As três parceiras e o comportamento delas (`docker-compose.yml`), fora de alteração.
+- Cobrança por consulta (R\$ 0,04) e não por cotação, e teto comercial de 24 horas para reaproveitar um
+  prêmio.
+- Retenção de auditoria de 5 anos (SUSEP) e papel de operadora da Prumo sobre o dado da corretora
+  (LGPD).
+
+O que é decisão desta arquitetura, defendida nas seções 4 e 5 e sujeita a mudança se a implementação
+provar algo errado:
+
+- O escopo e os parâmetros do circuit breaker (por parceira, 5 falhas consecutivas, timeout de
+  2000 ms).
+- A granularidade e o TTL do cache (por parceira, 1 hora).
+- O formato da resposta degradada do fallback (resposta parcial com cotação de cache como
+  complemento).
+- Onde a plataforma roda (híbrido: cloud com região no Brasil e armazenamento de auditoria imutável).
+
+### Pressupostos
+
+1. **Recotação dentro do TTL: aproximadamente 30%.** Origem: não é medido, é estimativa de negócio a
+   partir do que o README relata (o corretor recota a mesma placa várias vezes na mesma conversa),
+   aplicada só dentro da mesma corretora, porque a chave de cache é isolada por tenant (RF-07) e não
+   captura recotação entre corretoras diferentes. Consequência se for falso: o cenário conservador da
+   seção 8 já testa 20% e o payback continua dentro do primeiro mês; mas se a recotação real ficar bem
+   abaixo disso, o hit rate citado na seção 8 deixa de ser defensável, e a economia projetada precisa
+   ser medida de novo com tráfego real assim que o PoC estiver no ar.
+
+2. **Tráfego uniforme ao longo do dia.** Origem: simplificação declarada nos cenários B e C da seção 7,
+   não medição; o README só dá o total diário (120.000 cotações por dia útil), sem distribuição por
+   hora. Consequência se for falso: se o tráfego se concentrar num horário comercial de 9 horas em vez
+   de se espalhar pelas 24 horas do dia, os custos por hora calculados nesses dois cenários ficam
+   subestimados em até cerca de 2,7 vezes durante o pico, e o runbook da seção 6 precisaria diferenciar
+   horário de pico do resto do dia.
+
+3. **2 KB por cotação apresentada, no registro de auditoria.** Origem: estimativa própria a partir do
+   tamanho do payload de requisição e resposta (motorista, veículo, três cotações, metadados de
+   rastreabilidade), não medida, porque a auditoria ainda é decisão de arquitetura, não implementação
+   (seção 8). Consequência se for falso: se o registro real for o dobro (4 KB), o custo de
+   armazenamento da seção 8 também dobra, de R\$ 45,32 para cerca de R\$ 90,64 por mês no fim do
+   ano 5, mas continua sendo uma fração pequena da conta de parceiro, então o veredito do payback não
+   muda.
 ## 2. Visão geral da arquitetura
 
 ### Nível 1: Contexto (vale para o antes e o depois: a fronteira com o mundo não muda)
