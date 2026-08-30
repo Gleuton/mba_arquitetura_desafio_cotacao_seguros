@@ -251,12 +251,18 @@ resposta que as outras duas já tenham dado (`internal/quotation/service.go`). O
 inventar prêmio em qualquer circunstância.
 
 **Opções consideradas.**
-- Resposta parcial pura: entrega o que respondeu, nunca usa cotação antiga.
+- Resposta parcial pura: entrega o que respondeu, nunca usa cotação antiga. Descartada sozinha: quando
+  existe uma cotação de cache ainda válida para a parceira ausente, jogá-la fora entrega menos
+  informação à corretora do que o necessário, sem nenhum ganho de segurança em troca.
 - Cotação anterior de cache pura: sempre tenta servir do cache quando uma parceira falha, mesmo que as
-  outras duas estejam saudáveis e pudessem responder na hora.
+  outras duas estejam saudáveis e pudessem responder na hora. Descartada sozinha: não define o que
+  fazer quando não existe cache dela, deixando a resposta indefinida exatamente no caso mais frequente,
+  o de memória vazia ou expirada.
 - Recusa explícita: qualquer falha de parceira devolve um erro de negócio, sem nenhuma forma de
-  degradação.
-- Combinação das duas primeiras. Escolhida.
+  degradação. Descartada: descarta também as cotações que as outras parceiras já entregaram, o oposto
+  do que o RF-05 exige.
+- Combinação das duas primeiras. Escolhida: cobre os dois casos, cache disponível e cache ausente, sem
+  o vazio que cada uma isolada deixa.
 
 **Escolha.** Para cada parceira que não responde (falhou, estourou o timeout, ou está com o circuito
 aberto): se existir, no cache, uma cotação dela dentro do TTL, ela entra na resposta marcada como
