@@ -419,12 +419,12 @@ da seção 4 e ainda não existem no repositório.
 
 ### O que se olha
 
-| Métrica | Tipo | Rótulos | O que mostra |
-|---|---|---|---|
-| `partner_breaker_state` | gauge | `partner` | estado atual do circuito (0 fechado, 1 aberto, 2 meio aberto) |
-| `partner_breaker_transitions_total` | contador | `partner`, `from`, `to` | quantas vezes o circuito mudou de estado, e entre quais estados |
-| `partner_cache_result_total` | contador | `partner`, `result` (`hit` ou `miss`) | acertos e erros do cache, base do hit rate |
-| `http_client_request_duration_seconds` | histograma (já existe) | `server_address` | latência por parceira, reaproveitada da borda HTTP (`internal/platform/telemetry.go`) |
+| Métrica                                | Tipo                   | Rótulos                               | O que mostra                                                                          |
+|----------------------------------------|------------------------|---------------------------------------|---------------------------------------------------------------------------------------|
+| `partner_breaker_state`                | gauge                  | `partner`                             | estado atual do circuito (0 fechado, 1 aberto, 2 meio aberto)                         |
+| `partner_breaker_transitions_total`    | contador               | `partner`, `from`, `to`               | quantas vezes o circuito mudou de estado, e entre quais estados                       |
+| `partner_cache_result_total`           | contador               | `partner`, `result` (`hit` ou `miss`) | acertos e erros do cache, base do hit rate                                            |
+| `http_client_request_duration_seconds` | histograma (já existe) | `server_address`                      | latência por parceira, reaproveitada da borda HTTP (`internal/platform/telemetry.go`) |
 
 As duas marcações de trace: um atributo `partner.circuit_breaker.short_circuited` (verdadeiro) no span
 da chamada evitada por circuito aberto, e um atributo `quotation.cache_hit` (verdadeiro) no span da
@@ -432,11 +432,11 @@ requisição servida de cache. Nenhum dos dois carrega CPF, placa ou `quote_id`.
 
 ### Alertas
 
-| Métrica | Limiar | Ação |
-|---|---|---|
-| `partner_breaker_state{partner="X"}` | igual a 1 (aberto) por mais de 5 minutos contínuos | Página o plantonista; segue o runbook abaixo |
-| `sum(rate(partner_cache_result_total{result="hit"}[15m])) / sum(rate(partner_cache_result_total[15m]))` | abaixo de 10% por 30 minutos | Verificar se o Redis está acessível e se `internal/resilience/cache.go` está de fato sendo chamado; um hit rate assim baixo é sinal de cache quebrado, não de tráfego naturalmente disperso (mesmo estimativas conservadoras de recotação da seção 1 ficam bem acima disso) |
-| `histogram_quantile(0.95, sum by (server_address, le) (rate(http_client_request_duration_seconds_bucket[5m])))` | acima de 1800 ms (90% do timeout de 2000 ms) para uma parceira, por 5 minutos | Verificar se é a `partner-degrading` sob concorrência alta (comportamento esperado) ou uma mudança de comportamento em outra parceira; aviso antecipado, antes do circuito abrir |
+| Métrica                                                                                                         | Limiar                                                                        | Ação                                                                                                                                                                                                                                                                        |
+|-----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `partner_breaker_state{partner="X"}`                                                                            | igual a 1 (aberto) por mais de 5 minutos contínuos                            | Página o plantonista; segue o runbook abaixo                                                                                                                                                                                                                                |
+| `sum(rate(partner_cache_result_total{result="hit"}[15m])) / sum(rate(partner_cache_result_total[15m]))`         | abaixo de 10% por 30 minutos                                                  | Verificar se o Redis está acessível e se `internal/resilience/cache.go` está de fato sendo chamado; um hit rate assim baixo é sinal de cache quebrado, não de tráfego naturalmente disperso (mesmo estimativas conservadoras de recotação da seção 1 ficam bem acima disso) |
+| `histogram_quantile(0.95, sum by (server_address, le) (rate(http_client_request_duration_seconds_bucket[5m])))` | acima de 1800 ms (90% do timeout de 2000 ms) para uma parceira, por 5 minutos | Verificar se é a `partner-degrading` sob concorrência alta (comportamento esperado) ou uma mudança de comportamento em outra parceira; aviso antecipado, antes do circuito abrir                                                                                            |
 
 ### Runbook: o breaker de uma parceira está aberto há dez minutos
 
