@@ -299,12 +299,12 @@ flowchart TB
 
   handler -- "Quote(ctx, tenant, request)<br/>chamada Go, in-process" --> service
   service -- "Quote(ctx, parceira, request), uma por parceira<br/>chamada Go, in-process" --> resilient
-  resilient -- "GET quote:v1:..." --> cache
+  resilient -- "GET quote:v1:...<br/>chamada Go, in-process" --> cache
   cache -- "lê/escreve<br/>RESP" --> redis
-  resilient -- "Execute(), se não houve hit fresco" --> breaker
-  breaker -- "chamada protegida por timeout de 2000ms" --> client
+  resilient -- "Execute(), se não houve hit fresco<br/>chamada Go, in-process" --> breaker
+  breaker -- "chamada protegida por timeout de 2000ms<br/>chamada Go, in-process" --> client
   client -- "POST /quotes<br/>HTTP/JSON" --> partners
-  resilient -- "SET quote:v1:..., TTL 1h, se a chamada teve sucesso" --> cache
+  resilient -- "SET quote:v1:..., TTL 1h, se a chamada teve sucesso<br/>chamada Go, in-process" --> cache
 ```
 
 `Service` continua responsável por agregar e ordenar; `ResilientQuoter` é o novo ponto de decisão
