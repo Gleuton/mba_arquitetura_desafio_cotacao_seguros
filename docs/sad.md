@@ -349,10 +349,19 @@ originada de cache, com a idade em segundos; se não existir, essa parceira simp
 respondentes: mesmo com só uma das três disponível, a plataforma responde `200` com o que tiver, em
 vez de recusar.
 
-O contrato de `Response` (`internal/quotation/request.go`) muda para carregar essa informação. Cada
-item de `quotes` ganha um campo indicando a origem (`live` ou `cache`) e, quando `cache`, a idade em
-segundos; a `Response` ganha uma lista de parceiras ausentes e um indicador booleano de resposta
-degradada, verdadeiro sempre que existir ao menos uma parceira ausente ou uma cotação vinda de cache.
+O contrato de resposta muda em dois arquivos, por uma razão técnica: a interface `Quoter` que
+`Service` já consome (`internal/quotation/service.go`) precisa continuar exatamente igual, sem
+ganhar um retorno mais rico, e é isso que permite `ResilientQuoter` (adiante, componentes) ser um
+substituto direto do cliente de hoje. Por isso os dois campos por cotação, origem (`live` ou
+`cache`) e idade em segundos quando `cache`, entram no próprio `partner.Quote`
+(`internal/partner/client.go`), preenchidos como `live` por padrão pelo cliente HTTP e sobrescritos
+para `cache` pelo componente de resiliência quando serve do cache. A lista de parceiras ausentes e o
+indicador booleano de resposta degradada entram em `Response` (`internal/quotation/request.go`),
+verdadeiro sempre que existir ao menos uma parceira ausente ou uma cotação vinda de cache. É mais
+barato manter os dois campos por cotação junto do tipo que a interface já devolve do que mudar a
+assinatura de `Quoter` e cascatear a mudança por `internal/partner/client.go`,
+`internal/quotation/service.go`, `cmd/quotation-api/main.go` e os dois arquivos de teste que dependem
+dela.
 
 **Consequências, inclusive as ruins.** A corretora pode receber, na mesma resposta, uma cotação fresca
 de uma parceira e uma cotação de até 1 hora de outra, e precisa saber interpretar a diferença de
@@ -422,8 +431,9 @@ construção de `partner.NewClient()` isolado pela composição `resilient.New(c
 | Timeout de 2000 ms                                      | `internal/partner/client.go` (`NewClient`, campo `Timeout` do `http.Client`) | existe, muda |
 | Circuit breaker por parceira                            | `internal/resilience/quoter.go`                                              | proposto     |
 | Cliente Redis (leitura, escrita, `EXPIRE`)              | `internal/resilience/cache.go`                                               | proposto     |
+| Contrato de `Quote` (origem, idade em cache)            | `internal/partner/client.go`                                                 | existe, muda |
 | Montagem da resposta parcial e degradada                | `internal/quotation/service.go`                                              | existe, muda |
-| Contrato de resposta (`Response`, `Quote`)              | `internal/quotation/request.go`                                              | existe, muda |
+| Contrato de `Response` (parceiras ausentes, degradação) | `internal/quotation/request.go`                                              | existe, muda |
 | Wiring (troca de `partner.NewClient()` pelo decorator)  | `cmd/quotation-api/main.go`                                                  | existe, muda |
 | Novos parâmetros de configuração (timeout, limiar, TTL) | `internal/platform/config.go`                                                | existe, muda |
 
