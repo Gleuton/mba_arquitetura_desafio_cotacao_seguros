@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
 type Config struct {
-	Port      string
-	Partners  []Partner
-	Tenants   []string
-	Telemetry Telemetry
+	Port            string
+	Partners        []Partner
+	Tenants         []string
+	Telemetry       Telemetry
+	CacheTTLSeconds int
+	RedisAddr       string
 }
 
 type Partner struct {
@@ -35,6 +38,10 @@ const defaultCollector = "http://localhost:4317"
 
 const defaultServiceName = "quotation-api"
 
+const defaultCacheTTLSeconds = 3600
+
+const defaultRedisAddr = "localhost:6379"
+
 func LoadConfig(env func(string) string) (Config, error) {
 	cfg := Config{Port: text(env, "PORT", "8080")}
 
@@ -48,7 +55,19 @@ func LoadConfig(env func(string) string) (Config, error) {
 	if cfg.Telemetry, err = parseTelemetry(env); err != nil {
 		return Config{}, err
 	}
+	if cfg.CacheTTLSeconds, err = parseCacheTTLSeconds(text(env, "CACHE_TTL_SECONDS", strconv.Itoa(defaultCacheTTLSeconds))); err != nil {
+		return Config{}, err
+	}
+	cfg.RedisAddr = text(env, "REDIS_ADDR", defaultRedisAddr)
 	return cfg, nil
+}
+
+func parseCacheTTLSeconds(raw string) (int, error) {
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds <= 0 {
+		return 0, fmt.Errorf("CACHE_TTL_SECONDS: %q is not a positive integer", raw)
+	}
+	return seconds, nil
 }
 
 func parseTelemetry(env func(string) string) (Telemetry, error) {
