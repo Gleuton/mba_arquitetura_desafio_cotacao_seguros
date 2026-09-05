@@ -21,6 +21,8 @@ type Quote struct {
 	Currency        string `json:"currency"`
 	CoverageCents   int64  `json:"coverage_cents"`
 	ValidForSeconds int64  `json:"valid_for_seconds"`
+	Origin          string `json:"origin"`
+	AgeSeconds      int64  `json:"age_seconds"`
 }
 
 type Client struct {
@@ -73,6 +75,7 @@ func (c *Client) Quote(ctx context.Context, p platform.Partner, request any) (Qu
 	}
 
 	quote.Partner = p.Name
+	quote.Origin = "live"
 	return quote, nil
 }
 
