@@ -222,8 +222,11 @@ estrutural do sistema de hoje, não algo que varia com carga.
 
 Os três mecanismos abaixo vivem na fronteira já identificada no README: `internal/partner/client.go`
 (onde nasce a proteção da chamada) e `internal/quotation/service.go` (onde a resposta é montada). Os
-arquivos novos citados nesta seção (`internal/resilience/quoter.go`, `internal/resilience/cache.go`)
-são **proposta**, ainda não existem no repositório; nascem na Entrega 2, sob o desenho fixado aqui.
+arquivos novos citados nesta seção (`internal/resilience/quoter.go`,
+`internal/resilience/breaker.go`, `internal/resilience/cache.go`) já existem no repositório,
+implementados na Entrega 2 sob o desenho fixado aqui. As mudanças da decisão 3 (fallback) em
+`internal/quotation/service.go`, `internal/quotation/request.go` e `internal/quotation/handler.go`
+continuam pendentes.
 
 ### Decisão 1: circuit breaker
 
@@ -377,9 +380,9 @@ formato exato de `quotes` sem os campos novos.
 flowchart TB
   handler["Handler<br/><i>componente · internal/quotation/handler.go</i>"]
   service["Service<br/><i>componente · internal/quotation/service.go</i>"]
-  resilient["ResilientQuoter (proposto)<br/><i>componente · internal/resilience/quoter.go</i>"]
-  breaker["CircuitBreaker por parceira (proposto)<br/><i>componente · sony/gobreaker, dentro de internal/resilience</i>"]
-  cache["Cache (proposto)<br/><i>componente · internal/resilience/cache.go</i>"]
+  resilient["ResilientQuoter<br/><i>componente · internal/resilience/quoter.go</i>"]
+  breaker["CircuitBreaker por parceira<br/><i>componente · sony/gobreaker, dentro de internal/resilience</i>"]
+  cache["Cache<br/><i>componente · internal/resilience/cache.go</i>"]
   client["Client<br/><i>componente · internal/partner/client.go</i>"]
   redis[("redis<br/><i>contêiner</i>")]
   partners(["partner-slow · partner-flaky · partner-degrading<br/><i>sistemas externos</i>"])
@@ -429,13 +432,14 @@ construção de `partner.NewClient()` isolado pela composição `resilient.New(c
 | Mecanismo                                               | Arquivo                                                                      | Situação     |
 |---------------------------------------------------------|------------------------------------------------------------------------------|--------------|
 | Timeout de 2000 ms                                      | `internal/partner/client.go` (`NewClient`, campo `Timeout` do `http.Client`) | existe, muda |
-| Circuit breaker por parceira                            | `internal/resilience/quoter.go`                                              | proposto     |
-| Cliente Redis (leitura, escrita, `EXPIRE`)              | `internal/resilience/cache.go`                                               | proposto     |
+| Circuit breaker por parceira                            | `internal/resilience/breaker.go`                                             | novo         |
+| Orquestração cache → breaker (`ResilientQuoter`)        | `internal/resilience/quoter.go`                                              | novo         |
+| Cliente Redis (leitura, escrita, `EXPIRE`)              | `internal/resilience/cache.go`                                               | novo         |
 | Contrato de `Quote` (origem, idade em cache)            | `internal/partner/client.go`                                                 | existe, muda |
 | Montagem da resposta parcial e degradada                | `internal/quotation/service.go`                                              | existe, muda |
 | Contrato de `Response` (parceiras ausentes, degradação) | `internal/quotation/request.go`                                              | existe, muda |
 | Wiring (troca de `partner.NewClient()` pelo decorator)  | `cmd/quotation-api/main.go`                                                  | existe, muda |
-| Novos parâmetros de configuração (timeout, limiar, TTL) | `internal/platform/config.go`                                                | existe, muda |
+| Novos parâmetros de configuração (TTL do cache, endereço do Redis) | `internal/platform/config.go`                                     | existe, muda |
 
 Duas bibliotecas novas:
 
@@ -457,16 +461,19 @@ No padrão de `cmd/partner-mock/feasibility_test.go`: nenhum teste do breaker, d
 usa `sleep` ou espera que uma chamada de rede real aconteça no momento certo.
 
 - **Breaker.** Um `Quoter` de teste (dublê, não a implementação real de `internal/partner/client.go`)
-  devolve uma sequência fixa de sucessos e falhas; o teste verifica que a transição para `StateOpen`
-  acontece exatamente na quinta falha consecutiva, que nenhuma chamada adicional ao dublê acontece
-  enquanto o circuito está aberto, e que duas chamadas de sucesso seguidas no meio aberto fecham o
-  circuito de novo. Um segundo teste, de integração, roda contra o `partner-flaky` real do compose e
-  confirma que o circuito abre dentro da rajada conhecida de 9 falhas nas sequências 49 a 57
-  (`cmd/partner-mock/feasibility_test.go` já prova que essa rajada existe; o teste novo prova que o
-  breaker reage a ela).
-- **Cache e TTL.** O componente de cache recebe um relógio injetado (uma interface com um método
-  `Now()`), em vez de chamar `time.Now()` diretamente. O teste escreve uma entrada, avança o relógio
-  fake para além de 1 hora sem esperar tempo real nenhum, e confirma que a leitura seguinte é um miss.
+  devolve uma sequência fixa de sucessos e falhas (`internal/resilience/breaker_test.go`); os testes
+  verificam que a transição para `StateOpen` acontece exatamente na quinta falha consecutiva, que
+  nenhuma chamada adicional ao dublê acontece enquanto o circuito está aberto, que duas chamadas de
+  sucesso seguidas no meio aberto fecham o circuito de novo, e que uma falha no meio aberto reabre o
+  circuito imediatamente. Não há um teste automatizado de integração contra o `partner-flaky` real:
+  rodar um teste Go contra o compose vivo contradiria a própria regra desta entrega de que `make
+  test` não depende de Docker. A prova de que o breaker reage à rajada real de 9 falhas (sequências
+  49 a 57, `cmd/partner-mock/feasibility_test.go`) é a evidência de trace com o circuito aberto
+  exigida na tabela de evidências, coletada com `make reproduce` contra o ambiente real.
+- **Cache e TTL.** O componente de cache (`internal/resilience/cache_test.go`) recebe um relógio
+  injetado (uma interface com um método `Now()`), em vez de chamar `time.Now()` diretamente. O teste
+  escreve uma entrada, avança o relógio fake para além de 1 hora sem esperar tempo real nenhum, e
+  confirma que a leitura seguinte é um miss.
 - **Fallback.** Com o breaker de uma parceira forçado a `StateOpen` pelo dublê acima e uma entrada de
   cache conhecida no relógio fake, o teste confirma que a resposta final contém a cotação de cache
   marcada com a idade certa, e que, sem entrada de cache, a parceira aparece na lista de ausentes em vez
@@ -508,8 +515,10 @@ nenhum valor em reais é inventado nesta seção.
 
 ## 6. Operação e gestão de mudanças
 
-Os nomes de métrica e de atributo desta seção são propostas, nascem junto com o `internal/resilience/`
-da seção 4 e ainda não existem no repositório.
+Os nomes de métrica e de atributo desta seção já existem no repositório: `partner_breaker_state`,
+`partner_breaker_transitions_total` e o atributo `partner.circuit_breaker.short_circuited` em
+`internal/resilience/breaker.go`; `partner_cache_result_total` e o atributo `quotation.cache_hit` em
+`internal/resilience/cache.go`.
 
 ### O que se olha
 
