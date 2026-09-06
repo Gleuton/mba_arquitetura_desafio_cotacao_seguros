@@ -2,10 +2,8 @@ package quotation
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
-	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 )
 
@@ -59,24 +57,8 @@ func (a *API) quote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := a.service.Quote(r.Context(), tenant, request)
-	if err != nil {
-		a.respondPartnerFailure(w, err)
-		return
-	}
+	response := a.service.Quote(r.Context(), tenant, request)
 
 	w.Header().Set("X-Tenant-Id", tenant)
 	platform.WriteJSON(w, http.StatusOK, response)
-}
-
-func (a *API) respondPartnerFailure(w http.ResponseWriter, err error) {
-	var failure *partner.Error
-	if errors.As(err, &failure) {
-		platform.WriteJSON(w, http.StatusBadGateway, platform.ErrorBody{
-			Message: "partner insurer unavailable",
-			Partner: failure.Partner,
-		})
-		return
-	}
-	platform.WriteError(w, http.StatusBadGateway, "failed to query the partner insurers")
 }

@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 )
@@ -82,6 +84,51 @@ func TestQuoteFailsOnUnreadableResponse(t *testing.T) {
 
 	if _, err := NewClient().Quote(context.Background(), p, map[string]string{}); err == nil {
 		t.Fatal("unreadable response was accepted")
+	}
+}
+
+func TestQuoteHonoursTimeout(t *testing.T) {
+	const timeout = 20 * time.Millisecond
+
+	// O handler responde depois do timeout do cliente, mas termina sozinho: não depende do
+	// cliente fechar a conexão para o servidor de teste conseguir encerrar no defer abaixo.
+	p, closeServer := testPartner(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(10 * timeout)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer closeServer()
+
+	_, err := NewClientWithTimeout(timeout).Quote(context.Background(), p, map[string]string{})
+	if err == nil {
+		t.Fatal("a partner slower than the client timeout was treated as success")
+	}
+
+	var failure *Error
+	if !errors.As(err, &failure) {
+		t.Fatalf("error %v is not a *partner.Error", err)
+	}
+	if failure.Partner != "partner-flaky" {
+		t.Errorf("partner %q, want partner-flaky", failure.Partner)
+	}
+	if !strings.Contains(failure.Reason, "Client.Timeout") {
+		t.Errorf("reason %q does not identify a client timeout expiring", failure.Reason)
+	}
+}
+
+func TestQuoteFailsWhenTheRequestCannotBeMarshalled(t *testing.T) {
+	p := platform.Partner{Name: "partner-flaky", BaseURL: "http://unused.invalid"}
+
+	_, err := NewClient().Quote(context.Background(), p, map[string]any{"bad": make(chan int)})
+	if err == nil {
+		t.Fatal("an unmarshallable request body was accepted")
+	}
+
+	var failure *Error
+	if !errors.As(err, &failure) {
+		t.Fatalf("error %v is not a *partner.Error", err)
+	}
+	if failure.Partner != "partner-flaky" {
+		t.Errorf("partner %q, want partner-flaky", failure.Partner)
 	}
 }
 

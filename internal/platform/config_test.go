@@ -112,6 +112,9 @@ func TestInvalidConfigFails(t *testing.T) {
 		"collector without scheme":           {"OTEL_EXPORTER_OTLP_ENDPOINT": "otel-collector:4317"},
 		"collector without host":             {"OTEL_EXPORTER_OTLP_ENDPOINT": "http://"},
 		"OTEL_SDK_DISABLED is not a boolean": {"OTEL_SDK_DISABLED": "maybe"},
+		"cache TTL is not an integer":        {"CACHE_TTL_SECONDS": "one hour"},
+		"cache TTL is zero":                  {"CACHE_TTL_SECONDS": "0"},
+		"cache TTL is negative":              {"CACHE_TTL_SECONDS": "-1"},
 	}
 
 	for name, vars := range cases {
@@ -120,5 +123,36 @@ func TestInvalidConfigFails(t *testing.T) {
 				t.Fatalf("invalid configuration (%v) was accepted", vars)
 			}
 		})
+	}
+}
+
+func TestCacheDefaultsPointAtTheComposeEnvironment(t *testing.T) {
+	cfg, err := LoadConfig(env(nil))
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if cfg.CacheTTLSeconds != 3600 {
+		t.Errorf("cache TTL %d, want 3600", cfg.CacheTTLSeconds)
+	}
+	if cfg.RedisAddr != "localhost:6379" {
+		t.Errorf("redis address %q, want localhost:6379", cfg.RedisAddr)
+	}
+}
+
+func TestCacheReadsTheEnvironment(t *testing.T) {
+	cfg, err := LoadConfig(env(map[string]string{
+		"CACHE_TTL_SECONDS": "60",
+		"REDIS_ADDR":        "redis:6379",
+	}))
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	if cfg.CacheTTLSeconds != 60 {
+		t.Errorf("cache TTL %d, want 60", cfg.CacheTTLSeconds)
+	}
+	if cfg.RedisAddr != "redis:6379" {
+		t.Errorf("redis address %q, want redis:6379", cfg.RedisAddr)
 	}
 }

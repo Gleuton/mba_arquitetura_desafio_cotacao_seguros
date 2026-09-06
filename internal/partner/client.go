@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 )
+
+const defaultTimeout = 2000 * time.Millisecond
 
 type Quote struct {
 	Partner         string `json:"partner"`
@@ -18,6 +21,8 @@ type Quote struct {
 	Currency        string `json:"currency"`
 	CoverageCents   int64  `json:"coverage_cents"`
 	ValidForSeconds int64  `json:"valid_for_seconds"`
+	Origin          string `json:"origin"`
+	AgeSeconds      int64  `json:"age_seconds"`
 }
 
 type Client struct {
@@ -25,7 +30,14 @@ type Client struct {
 }
 
 func NewClient() *Client {
-	return &Client{http: &http.Client{Transport: platform.InstrumentTransport(http.DefaultTransport)}}
+	return NewClientWithTimeout(defaultTimeout)
+}
+
+func NewClientWithTimeout(d time.Duration) *Client {
+	return &Client{http: &http.Client{
+		Timeout:   d,
+		Transport: platform.InstrumentTransport(http.DefaultTransport),
+	}}
 }
 
 const responseLimit = 1 << 20
@@ -63,6 +75,7 @@ func (c *Client) Quote(ctx context.Context, p platform.Partner, request any) (Qu
 	}
 
 	quote.Partner = p.Name
+	quote.Origin = "live"
 	return quote, nil
 }
 

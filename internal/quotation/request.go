@@ -62,7 +62,9 @@ type partnerRequest struct {
 }
 
 type Response struct {
-	TenantID  string          `json:"tenant_id"`
-	Quotes    []partner.Quote `json:"quotes"`
-	ElapsedMs int64           `json:"elapsed_ms"`
+	TenantID        string          `json:"tenant_id"`
+	Quotes          []partner.Quote `json:"quotes"`
+	MissingPartners []string        `json:"missing_partners"`
+	Degraded        bool            `json:"degraded"`
+	ElapsedMs       int64           `json:"elapsed_ms"`
 }

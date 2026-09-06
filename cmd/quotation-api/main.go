@@ -10,9 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/extra/redisotel/v9"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/partner"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/quotation"
+	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/resilience"
 )
 
 func main() {
@@ -29,8 +33,26 @@ func main() {
 		log.Fatalf("telemetry: %v", err)
 	}
 
+	redisClient := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	if err := redisotel.InstrumentTracing(redisClient); err != nil {
+		log.Fatalf("redis tracing instrumentation: %v", err)
+	}
+	if err := redisotel.InstrumentMetrics(redisClient); err != nil {
+		log.Fatalf("redis metrics instrumentation: %v", err)
+	}
+
+	cache, err := resilience.NewCache(redisClient, time.Duration(cfg.CacheTTLSeconds)*time.Second)
+	if err != nil {
+		log.Fatalf("cache: %v", err)
+	}
+
+	breaker, err := resilience.NewBreaker(cfg.Partners, partner.NewClient())
+	if err != nil {
+		log.Fatalf("circuit breaker: %v", err)
+	}
+
 	api := quotation.NewAPI(
-		quotation.NewService(cfg.Partners, partner.NewClient()),
+		quotation.NewService(cfg.Partners, resilience.NewResilientQuoter(cache, breaker)),
 		cfg.Tenants,
 	)
 
@@ -47,6 +69,9 @@ func main() {
 		defer cancel()
 		if err := server.Shutdown(shutdown); err != nil {
 			log.Printf("quotation-api: forced shutdown: %v", err)
+		}
+		if err := redisClient.Close(); err != nil {
+			log.Printf("quotation-api: redis shutdown: %v", err)
 		}
 		if err := stopTelemetry(shutdown); err != nil {
 			log.Printf("quotation-api: telemetry shutdown: %v", err)
