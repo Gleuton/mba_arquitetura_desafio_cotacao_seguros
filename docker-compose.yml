@@ -46,7 +46,7 @@ services:
       # escrever uma linha para ver o trace da requisicao no Jaeger. Para desligar: OTEL_SDK_DISABLED=true.
       OTEL_SERVICE_NAME: quotation-api
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
-       REDIS_ADDR: "redis:6379"
+      REDIS_ADDR: "redis:6379"
       CACHE_TTL_SECONDS: "3600"
     depends_on:
       redis:
