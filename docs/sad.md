@@ -210,13 +210,42 @@ Criados por esta arquitetura:
 | RNF-01 | Latência da cotação                        | p95 do `POST /quotes`                                                         | 8,00 s sob carga (baseline 2,03 s), medido em 2026-08-30 (`docs/evidencias/historico-reproduce.md`)                                                                                                           | ≤ 4 s sob a mesma carga                                                         | `http_server_request_duration_seconds`                                       | Agregação continua em série (paralelizar é opcional e fora desta entrega); com timeout de 2000 ms por parceira, o pior caso plausível é `partner-slow` (≈1,7 s) mais `partner-flaky` (≈0,2 s) mais `partner-degrading` no teto do timeout (2 s), aproximadamente 3,9 s, com margem até 4 s     |
 | RNF-02 | Disponibilidade percebida pela corretora   | proporção de respostas não-502 sobre o total                                  | 60% sob carga (baseline 50%), medido em 2026-08-30                                                                                                                                                            | ≥ 98%                                                                           | `http_server_request_duration_seconds_count` por `http_response_status_code` | `partner-slow` e `partner-degrading` nunca falham; só `partner-flaky` falha (40%). Com o fallback (RF-05/RF-06) entregando resposta parcial sempre que ao menos uma parceira responde, só há falha total se as três estiverem indisponíveis ao mesmo tempo, cenário raro nos perfis do compose |
 | RNF-03 | Tempo de detecção de uma parceira instável | número de falhas consecutivas até a transição fechado para aberto do circuito | não aplicável (não existe circuito hoje; cada falha chega inteira até a corretora)                                                                                                                            | circuito abre em até 5 falhas consecutivas por parceira                         | contador de transições de estado do breaker (nome definido na seção 6)       | a rajada real de 9 falhas consecutivas da `partner-flaky` (sequências 49 a 57, seed determinística) mostra que um limiar de 5 é atingido dentro da mesma rajada, sem depender de uma parceira artificialmente ruim                                                                             |
-| RNF-04 | Economia de consultas compradas via cache  | hit rate do cache (hit sobre hit mais miss)                                   | 0%, fato estrutural verificado em código (não é medição de carga): `internal/quotation/service.go` não chama o Redis que sobe no compose                                                                      | curva de hit rate visivelmente crescente sob a carga padrão do `make reproduce` | consulta PromQL sobre o contador de hit/miss (nome definido na seção 6)      | o objetivo aqui é provar que o mecanismo funciona; o hit rate de produção que sustenta a economia financeira é tratado à parte na seção 8, porque a carga padrão repete cinco cotações e não representa tráfego real                                                                           |
-| RNF-05 | Ausência de dado pessoal em telemetria     | contagem de spans e métricas de negócio com atributo CPF, placa ou `quote_id` | 0, fato estrutural verificado em código (não é medição de carga): os atributos que `internal/platform/telemetry.go` emite hoje (HTTP de entrada e saída, runtime do Go) não incluem CPF, placa nem `quote_id` | 0, sempre                                                                       | inspeção dos atributos declarados no código antes de cada release            | requisito regulatório da LGPD, não meta de engenharia negociável                                                                                                                                                                                                                               |
+| RNF-04 | Economia de consultas compradas via cache  | hit rate do cache (hit sobre hit mais miss)                                   | 0%, fato estrutural verificado em código em 2026-08-30, antes da Entrega 2: `internal/quotation/service.go` não chamava o Redis que sobe no compose                                                            | curva de hit rate visivelmente crescente sob a carga padrão do `make reproduce` | consulta PromQL sobre o contador de hit/miss (nome definido na seção 6)      | o objetivo aqui é provar que o mecanismo funciona; o hit rate de produção que sustenta a economia financeira é tratado à parte na seção 8, porque a carga padrão repete cinco cotações e não representa tráfego real                                                                           |
+| RNF-05 | Ausência de dado pessoal em telemetria     | contagem de spans e métricas de negócio com atributo CPF, placa ou `quote_id` | 0, fato estrutural verificado em código em 2026-08-30, antes da Entrega 2: os atributos que `internal/platform/telemetry.go` emitia (HTTP de entrada e saída, runtime do Go) não incluíam CPF, placa nem `quote_id` | 0, sempre                                                                       | inspeção dos atributos declarados no código antes de cada release            | requisito regulatório da LGPD, não meta de engenharia negociável                                                                                                                                                                                                                               |
 
 As colunas "Hoje" de RNF-01 e RNF-02 vêm de medição sob carga (`make reproduce`,
-`docs/evidencias/historico-reproduce.md`); as de RNF-04 e RNF-05 vêm de inspeção do código vigente,
-porque o que elas descrevem (uso do cache, presença de dado pessoal em telemetria) é um fato
-estrutural do sistema de hoje, não algo que varia com carga.  
+`docs/evidencias/historico-reproduce.md`); as de RNF-04 e RNF-05 vêm de inspeção do código vigente
+em 2026-08-30, porque o que elas descrevem (uso do cache, presença de dado pessoal em telemetria) é
+um fato estrutural do sistema daquele momento, não algo que varia com carga. As duas descrevem o
+sistema **antes** desta entrega; os resultados medidos **depois**, com os sete mecanismos da
+Entrega 2 implementados, estão logo abaixo.
+
+### Resultado medido (depois)
+
+Medido em 2026-09-06, com `make down && make reproduce` (mesma carga padrão: 10 de baseline, 200
+com 50 em voo), ambiente subido do zero:
+
+| ID     | Depois                                                                                     | Bate o alvo? |
+|--------|----------------------------------------------------------------------------------------------|---------------|
+| RNF-01 | p95 de 196 ms na fase de carga (baseline 2,03 s, primeira chamada ainda é *miss* de cache)   | sim, folgado (alvo ≤ 4 s) |
+| RNF-02 | 100% de respostas não-502 (baseline e carga)                                                  | sim, folgado (alvo ≥ 98%) |
+| RNF-03 | o circuito de `partner-flaky` abriu, foi a meio aberto e fechou de novo sob a rajada real de falhas (sequências 49 a 57); nenhuma chamada de saída à parceira aparece nos traces enquanto aberto | sim |
+| RNF-04 | hit rate subiu de 0% para 91% dentro da janela da carga padrão                                | sim, curva visivelmente crescente |
+| RNF-05 | nenhum atributo com CPF, placa ou `quote_id` nos spans e métricas capturados nesta execução    | sim |
+
+Evidência: `docs/evidencias/historico-reproduce.md` (seção "2026-09-06 — depois", com a comparação
+lado a lado contra o "antes"), `docs/evidencias/trace-breaker-aberto.json`,
+`docs/evidencias/breaker-state-depois.png`, `docs/evidencias/hit-rate-depois.png`,
+`docs/evidencias/trace-cache-hit.json`.
+
+O p95 real (196 ms) ficou bem abaixo da projeção da seção 3 original (≈3,9 s): a projeção assumia
+toda chamada como *live*, mas a carga padrão repete cinco cotações, e a maior parte da fase de carga
+é servida do cache sem tocar nenhuma parceira. RNF-02 também superou o alvo pelo mesmo motivo, mais
+o fallback (RF-05) fechando os casos em que `partner-flaky` falharia sozinha. Isso não invalida a
+projeção original (que continua sendo o pior caso plausível, sem cache aquecido, relevante para o
+runbook da seção 6), só mostra que a carga padrão de laboratório é otimista demais para representar
+esse pior caso; é a mesma ressalva que a seção 8 já faz sobre não usar o hit rate de laboratório na
+conta de economia.
 
 ## 4. Detalhamento da arquitetura
 
