@@ -115,6 +115,23 @@ func TestQuoteHonoursTimeout(t *testing.T) {
 	}
 }
 
+func TestQuoteFailsWhenTheRequestCannotBeMarshalled(t *testing.T) {
+	p := platform.Partner{Name: "partner-flaky", BaseURL: "http://unused.invalid"}
+
+	_, err := NewClient().Quote(context.Background(), p, map[string]any{"bad": make(chan int)})
+	if err == nil {
+		t.Fatal("an unmarshallable request body was accepted")
+	}
+
+	var failure *Error
+	if !errors.As(err, &failure) {
+		t.Fatalf("error %v is not a *partner.Error", err)
+	}
+	if failure.Partner != "partner-flaky" {
+		t.Errorf("partner %q, want partner-flaky", failure.Partner)
+	}
+}
+
 func TestQuoteHonoursCancellation(t *testing.T) {
 	p, closeServer := testPartner(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()

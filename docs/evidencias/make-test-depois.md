@@ -1,9 +1,13 @@
 # Saída do `make test` — depois
 
 Legenda: suíte inteira do repositório passando, sem teste pulado e sem teste quebrado, medida em
-2026-09-06 12:17 UTC, com os sete commits da Entrega 2 (timeout, config, circuit breaker, cache,
-`ResilientQuoter`, wiring, fallback) aplicados. 79 testes passam (`--- PASS`), 0 falham, nos 6
-pacotes com teste do repositório.
+2026-09-06 17:15 UTC, com os sete commits da Entrega 2 (timeout, config, circuit breaker, cache,
+`ResilientQuoter`, wiring, fallback) aplicados, mais uma rodada de revisão de cobertura de teste que
+acrescentou três casos: `TestQuoteFailsWhenTheRequestCannotBeMarshalled`
+(`internal/partner/client_test.go`), `TestBreakerBypassesAPartnerItWasNotConfiguredFor` e
+`TestCacheGetTreatsACorruptedEntryAsAMiss` (`internal/resilience/`), sem tocar em nenhum código de
+produção. 82 testes passam (`--- PASS`), 0 falham, nos 6 pacotes com teste do repositório (79 antes
+dessa rodada de cobertura, mais os 3 casos novos).
 
 Comando: `make test` (equivalente a `go test ./...`; saída abaixo com `-count=1 -v` para forçar
 execução sem cache e mostrar cada teste individualmente).
@@ -16,31 +20,31 @@ execução sem cache e mostrar cada teste individualmente).
 === RUN   TestFlagsShapeTheRun
 --- PASS: TestFlagsShapeTheRun (0.00s)
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_baseline
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_distinct_quote
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unknown_flag
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_concurrency
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_concurrency
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_requests
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_baseline
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/zeroed_duration
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/duration_without_units
-=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unparseable_target
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unknown_flag
 === RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/empty_tenant
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_distinct_quote
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/duration_without_units
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme
+=== RUN   TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unparseable_target
 --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_baseline (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_distinct_quote (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unknown_flag (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_concurrency (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_concurrency (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_requests (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_baseline (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/zeroed_duration (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/duration_without_units (0.00s)
-    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unparseable_target (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unknown_flag (0.00s)
     --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/empty_tenant (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/negative_timeout (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/no_distinct_quote (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/duration_without_units (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/target_without_scheme (0.00s)
+    --- PASS: TestInvalidRunIsRefusedInsteadOfMeasuringNothing/unparseable_target (0.00s)
 === RUN   TestSummaryCountsSuccessesAndTimesEveryRequest
 --- PASS: TestSummaryCountsSuccessesAndTimesEveryRequest (0.00s)
 === RUN   TestFailuresAreGroupedByCauseAndOrderedByWeight
@@ -98,27 +102,27 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd
 === RUN   TestConfigReadsTheFullProfile
 --- PASS: TestConfigReadsTheFullProfile (0.00s)
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_latency
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-integer_latency
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_rate_above_1
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_failure_rate
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_failure_rate
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/degradation_without_step
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_latency
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-integer_latency
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_status_out_of_range
 === RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_degradation_threshold
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/degradation_without_step
-=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed
+=== RUN   TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_rate_above_1
 --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_latency (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-integer_latency (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_rate_above_1 (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_failure_rate (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_failure_rate (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/degradation_without_step (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/zeroed_quote_TTL (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_latency (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-integer_latency (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_status_out_of_range (0.00s)
     --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/negative_degradation_threshold (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/degradation_without_step (0.00s)
-    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/non-numeric_seed (0.00s)
+    --- PASS: TestInvalidConfigFailsInsteadOfFallingBackToTheDefault/failure_rate_above_1 (0.00s)
 === RUN   TestFeasibilityBreakersOpenOnTheDefaultProfile
 === RUN   TestFeasibilityBreakersOpenOnTheDefaultProfile/3_consecutive_failures
     feasibility_test.go:132: opened on request 9 (9 partner calls), 13 openings, 4 recoveries, 65 requests short-circuited
@@ -163,7 +167,7 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd
 === RUN   TestConfigExposesTheEffectiveProfile
 --- PASS: TestConfigExposesTheEffectiveProfile (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/partner-mock	0.114s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/partner-mock	0.113s
 ?   	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd/quotation-api	[no test files]
 === RUN   TestQuoteReadsThePartnerResponse
 --- PASS: TestQuoteReadsThePartnerResponse (0.00s)
@@ -173,6 +177,8 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/cmd
 --- PASS: TestQuoteFailsOnUnreadableResponse (0.00s)
 === RUN   TestQuoteHonoursTimeout
 --- PASS: TestQuoteHonoursTimeout (0.20s)
+=== RUN   TestQuoteFailsWhenTheRequestCannotBeMarshalled
+--- PASS: TestQuoteFailsWhenTheRequestCannotBeMarshalled (0.00s)
 === RUN   TestQuoteHonoursCancellation
 --- PASS: TestQuoteHonoursCancellation (0.00s)
 PASS
@@ -190,39 +196,39 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestTelemetryOffSkipsEndpointValidation
 --- PASS: TestTelemetryOffSkipsEndpointValidation (0.00s)
 === RUN   TestInvalidConfigFails
-=== RUN   TestInvalidConfigFails/collector_without_scheme
-=== RUN   TestInvalidConfigFails/cache_TTL_is_not_an_integer
-=== RUN   TestInvalidConfigFails/cache_TTL_is_zero
-=== RUN   TestInvalidConfigFails/relative_url
-=== RUN   TestInvalidConfigFails/repeated_partner
-=== RUN   TestInvalidConfigFails/empty_partner_list
-=== RUN   TestInvalidConfigFails/collector_without_host
-=== RUN   TestInvalidConfigFails/OTEL_SDK_DISABLED_is_not_a_boolean
 === RUN   TestInvalidConfigFails/cache_TTL_is_negative
 === RUN   TestInvalidConfigFails/partner_without_url
+=== RUN   TestInvalidConfigFails/relative_url
 === RUN   TestInvalidConfigFails/url_without_host
 === RUN   TestInvalidConfigFails/partner_without_name
+=== RUN   TestInvalidConfigFails/collector_without_scheme
+=== RUN   TestInvalidConfigFails/collector_without_host
+=== RUN   TestInvalidConfigFails/OTEL_SDK_DISABLED_is_not_a_boolean
+=== RUN   TestInvalidConfigFails/cache_TTL_is_not_an_integer
+=== RUN   TestInvalidConfigFails/repeated_partner
+=== RUN   TestInvalidConfigFails/empty_partner_list
 === RUN   TestInvalidConfigFails/empty_tenant_list
+=== RUN   TestInvalidConfigFails/cache_TTL_is_zero
 --- PASS: TestInvalidConfigFails (0.00s)
-    --- PASS: TestInvalidConfigFails/collector_without_scheme (0.00s)
-    --- PASS: TestInvalidConfigFails/cache_TTL_is_not_an_integer (0.00s)
-    --- PASS: TestInvalidConfigFails/cache_TTL_is_zero (0.00s)
-    --- PASS: TestInvalidConfigFails/relative_url (0.00s)
-    --- PASS: TestInvalidConfigFails/repeated_partner (0.00s)
-    --- PASS: TestInvalidConfigFails/empty_partner_list (0.00s)
-    --- PASS: TestInvalidConfigFails/collector_without_host (0.00s)
-    --- PASS: TestInvalidConfigFails/OTEL_SDK_DISABLED_is_not_a_boolean (0.00s)
     --- PASS: TestInvalidConfigFails/cache_TTL_is_negative (0.00s)
     --- PASS: TestInvalidConfigFails/partner_without_url (0.00s)
+    --- PASS: TestInvalidConfigFails/relative_url (0.00s)
     --- PASS: TestInvalidConfigFails/url_without_host (0.00s)
     --- PASS: TestInvalidConfigFails/partner_without_name (0.00s)
+    --- PASS: TestInvalidConfigFails/collector_without_scheme (0.00s)
+    --- PASS: TestInvalidConfigFails/collector_without_host (0.00s)
+    --- PASS: TestInvalidConfigFails/OTEL_SDK_DISABLED_is_not_a_boolean (0.00s)
+    --- PASS: TestInvalidConfigFails/cache_TTL_is_not_an_integer (0.00s)
+    --- PASS: TestInvalidConfigFails/repeated_partner (0.00s)
+    --- PASS: TestInvalidConfigFails/empty_partner_list (0.00s)
     --- PASS: TestInvalidConfigFails/empty_tenant_list (0.00s)
+    --- PASS: TestInvalidConfigFails/cache_TTL_is_zero (0.00s)
 === RUN   TestCacheDefaultsPointAtTheComposeEnvironment
 --- PASS: TestCacheDefaultsPointAtTheComposeEnvironment (0.00s)
 === RUN   TestCacheReadsTheEnvironment
 --- PASS: TestCacheReadsTheEnvironment (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform	0.004s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform	0.003s
 === RUN   TestQuotesReturnsAggregatedQuotes
 --- PASS: TestQuotesReturnsAggregatedQuotes (0.00s)
 === RUN   TestQuotesRejectsRequestWithoutTenant
@@ -230,19 +236,19 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestQuotesRejectsUnknownBroker
 --- PASS: TestQuotesRejectsUnknownBroker (0.00s)
 === RUN   TestQuotesRejectsInvalidBody
-=== RUN   TestQuotesRejectsInvalidBody/missing_document
 === RUN   TestQuotesRejectsInvalidBody/missing_plate
 === RUN   TestQuotesRejectsInvalidBody/zero_value
 === RUN   TestQuotesRejectsInvalidBody/invalid_coverage
 === RUN   TestQuotesRejectsInvalidBody/unknown_field
 === RUN   TestQuotesRejectsInvalidBody/broken_json
+=== RUN   TestQuotesRejectsInvalidBody/missing_document
 --- PASS: TestQuotesRejectsInvalidBody (0.00s)
-    --- PASS: TestQuotesRejectsInvalidBody/missing_document (0.00s)
     --- PASS: TestQuotesRejectsInvalidBody/missing_plate (0.00s)
     --- PASS: TestQuotesRejectsInvalidBody/zero_value (0.00s)
     --- PASS: TestQuotesRejectsInvalidBody/invalid_coverage (0.00s)
     --- PASS: TestQuotesRejectsInvalidBody/unknown_field (0.00s)
     --- PASS: TestQuotesRejectsInvalidBody/broken_json (0.00s)
+    --- PASS: TestQuotesRejectsInvalidBody/missing_document (0.00s)
 === RUN   TestQuotesRespondsWithPartialResultsAndDegradedTrueWhenAPartnerFails
 --- PASS: TestQuotesRespondsWithPartialResultsAndDegradedTrueWhenAPartnerFails (0.00s)
 === RUN   TestQuotesRespondsWithEmptyQuotesWhenAllPartnersFail
@@ -252,21 +258,21 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestNormalizeFillsDefaultsAndTidiesUp
 --- PASS: TestNormalizeFillsDefaultsAndTidiesUp (0.00s)
 === RUN   TestNormalizeRejectsIncompleteRequest
-=== RUN   TestNormalizeRejectsIncompleteRequest/missing_plate
-=== RUN   TestNormalizeRejectsIncompleteRequest/missing_vehicle_year
 === RUN   TestNormalizeRejectsIncompleteRequest/zero_value
 === RUN   TestNormalizeRejectsIncompleteRequest/negative_value
 === RUN   TestNormalizeRejectsIncompleteRequest/invalid_coverage
 === RUN   TestNormalizeRejectsIncompleteRequest/missing_document
 === RUN   TestNormalizeRejectsIncompleteRequest/missing_birth_year
+=== RUN   TestNormalizeRejectsIncompleteRequest/missing_plate
+=== RUN   TestNormalizeRejectsIncompleteRequest/missing_vehicle_year
 --- PASS: TestNormalizeRejectsIncompleteRequest (0.00s)
-    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_plate (0.00s)
-    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_vehicle_year (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/zero_value (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/negative_value (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/invalid_coverage (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/missing_document (0.00s)
     --- PASS: TestNormalizeRejectsIncompleteRequest/missing_birth_year (0.00s)
+    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_plate (0.00s)
+    --- PASS: TestNormalizeRejectsIncompleteRequest/missing_vehicle_year (0.00s)
 === RUN   TestQuoteAggregatesTheThreePartnersSortedByPremium
 --- PASS: TestQuoteAggregatesTheThreePartnersSortedByPremium (0.00s)
 === RUN   TestQuoteCallsThePartnersSerially
@@ -280,15 +286,19 @@ ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/int
 === RUN   TestBrokerGoesInThePartnerRequest
 --- PASS: TestBrokerGoesInThePartnerRequest (0.00s)
 PASS
-ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/quotation	0.126s
+ok  	github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/quotation	0.124s
 === RUN   TestBreakerOpensOnTheFifthConsecutiveFailureAndClosesAfterTwoHalfOpenSuccesses
 --- PASS: TestBreakerOpensOnTheFifthConsecutiveFailureAndClosesAfterTwoHalfOpenSuccesses (0.20s)
 === RUN   TestBreakerReopensOnAHalfOpenFailure
 --- PASS: TestBreakerReopensOnAHalfOpenFailure (0.20s)
+=== RUN   TestBreakerBypassesAPartnerItWasNotConfiguredFor
+--- PASS: TestBreakerBypassesAPartnerItWasNotConfiguredFor (0.00s)
 === RUN   TestBreakerMarksTheSpanWhenShortCircuited
 --- PASS: TestBreakerMarksTheSpanWhenShortCircuited (0.00s)
 === RUN   TestCacheMissesAfterTheTTLElapsesWithoutWaitingRealTime
 --- PASS: TestCacheMissesAfterTheTTLElapsesWithoutWaitingRealTime (0.00s)
+=== RUN   TestCacheGetTreatsACorruptedEntryAsAMiss
+--- PASS: TestCacheGetTreatsACorruptedEntryAsAMiss (0.00s)
 === RUN   TestCacheKeyIsolatesByTenant
 --- PASS: TestCacheKeyIsolatesByTenant (0.00s)
 === RUN   TestCacheKeyIsolatesByPartner

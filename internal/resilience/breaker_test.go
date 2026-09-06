@@ -97,6 +97,22 @@ func TestBreakerReopensOnAHalfOpenFailure(t *testing.T) {
 	}
 }
 
+func TestBreakerBypassesAPartnerItWasNotConfiguredFor(t *testing.T) {
+	fake := &fakeQuoter{}
+	b, err := newBreaker([]platform.Partner{testPartner}, fake, 5, time.Hour, 2)
+	if err != nil {
+		t.Fatalf("newBreaker: %v", err)
+	}
+
+	unconfigured := platform.Partner{Name: "partner-unknown", BaseURL: "http://unknown"}
+	if _, err := b.Quote(context.Background(), unconfigured, nil); err != nil {
+		t.Fatalf("Quote for an unconfigured partner: unexpected error %v", err)
+	}
+	if fake.calls != 1 {
+		t.Fatalf("fake quoter called %d times, want 1 (no circuit to short-circuit it)", fake.calls)
+	}
+}
+
 func TestBreakerMarksTheSpanWhenShortCircuited(t *testing.T) {
 	const openDuration = time.Hour
 	fake := &fakeQuoter{failFor: 5}

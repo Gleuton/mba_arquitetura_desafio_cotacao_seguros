@@ -92,6 +92,27 @@ func TestCacheMissesAfterTheTTLElapsesWithoutWaitingRealTime(t *testing.T) {
 	}
 }
 
+func TestCacheGetTreatsACorruptedEntryAsAMiss(t *testing.T) {
+	fake := newFakeStore(time.Now)
+	cache, err := newCache(fake, time.Hour)
+	if err != nil {
+		t.Fatalf("newCache: %v", err)
+	}
+
+	req := testCacheRequest("corretora-a")
+	key, err := cacheKey(cachePartner, req)
+	if err != nil {
+		t.Fatalf("cacheKey: %v", err)
+	}
+	if err := fake.Set(context.Background(), key, "not json", time.Hour); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	if _, _, hit := cache.Get(context.Background(), cachePartner, req); hit {
+		t.Fatal("a value that does not unmarshal into a cachedEntry was served as a hit")
+	}
+}
+
 func TestCacheKeyIsolatesByTenant(t *testing.T) {
 	cache, err := newCache(newFakeStore(time.Now), time.Hour)
 	if err != nil {
