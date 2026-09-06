@@ -27,10 +27,17 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 	forPartner := partnerRequest{Broker: tenant, Request: request}
 
 	quotes := make([]partner.Quote, 0, len(s.partners))
+	missing := make([]string, 0, len(s.partners))
+	degraded := false
 	for _, p := range s.partners {
 		quote, err := s.quoter.Quote(ctx, p, forPartner)
 		if err != nil {
-			return Response{}, err
+			missing = append(missing, p.Name)
+			degraded = true
+			continue
+		}
+		if quote.Origin == "cache" {
+			degraded = true
 		}
 		quotes = append(quotes, quote)
 	}
@@ -40,8 +47,10 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 	})
 
 	return Response{
-		TenantID:  tenant,
-		Quotes:    quotes,
-		ElapsedMs: time.Since(start).Milliseconds(),
+		TenantID:        tenant,
+		Quotes:          quotes,
+		MissingPartners: missing,
+		Degraded:        degraded,
+		ElapsedMs:       time.Since(start).Milliseconds(),
 	}, nil
 }

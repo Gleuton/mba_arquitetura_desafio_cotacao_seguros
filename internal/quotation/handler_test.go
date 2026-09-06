@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/GuilhermeOliveira591/mba_arquitetura_desafio_cotacao_seguros/internal/platform"
 )
 
 const validBody = `{
@@ -92,20 +90,49 @@ func TestQuotesRejectsInvalidBody(t *testing.T) {
 	}
 }
 
-func TestQuotesResponds502WithTheNameOfThePartnerThatWentDown(t *testing.T) {
+func TestQuotesRespondsWithPartialResultsAndDegradedTrueWhenAPartnerFails(t *testing.T) {
 	quoter := &fakeQuoter{premiums: defaultPremiums(), failOn: "partner-flaky"}
 	response := postQuotes(testAPI(quoter), "corretora-a", validBody)
 
-	if response.Code != http.StatusBadGateway {
-		t.Fatalf("status %d, expected 502", response.Code)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status %d, expected 200 (partial response, not an error)", response.Code)
 	}
 
-	var body platform.ErrorBody
+	var body Response
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
-		t.Fatalf("unreadable error: %v", err)
+		t.Fatalf("unreadable response: %v", err)
 	}
-	if body.Partner != "partner-flaky" {
-		t.Errorf("partner blamed %q, expected partner-flaky", body.Partner)
+	if len(body.Quotes) != 2 {
+		t.Fatalf("%d quotes, expected 2", len(body.Quotes))
+	}
+	if len(body.MissingPartners) != 1 || body.MissingPartners[0] != "partner-flaky" {
+		t.Fatalf("missing_partners %v, expected [partner-flaky]", body.MissingPartners)
+	}
+	if !body.Degraded {
+		t.Error("degraded should be true in the response body")
+	}
+}
+
+func TestQuotesRespondsWithEmptyQuotesWhenAllPartnersFail(t *testing.T) {
+	quoter := &fakeQuoter{failAll: true}
+	response := postQuotes(testAPI(quoter), "corretora-a", validBody)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status %d, expected 200 (no floor on how many partners must respond)", response.Code)
+	}
+
+	var body Response
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unreadable response: %v", err)
+	}
+	if len(body.Quotes) != 0 {
+		t.Fatalf("%d quotes, expected 0", len(body.Quotes))
+	}
+	if len(body.MissingPartners) != len(threePartners) {
+		t.Fatalf("missing_partners %v, expected all %d partners", body.MissingPartners, len(threePartners))
+	}
+	if !body.Degraded {
+		t.Error("degraded should be true")
 	}
 }
 

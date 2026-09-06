@@ -224,9 +224,9 @@ Os três mecanismos abaixo vivem na fronteira já identificada no README: `inter
 (onde nasce a proteção da chamada) e `internal/quotation/service.go` (onde a resposta é montada). Os
 arquivos novos citados nesta seção (`internal/resilience/quoter.go`,
 `internal/resilience/breaker.go`, `internal/resilience/cache.go`) já existem no repositório,
-implementados na Entrega 2 sob o desenho fixado aqui. As mudanças da decisão 3 (fallback) em
-`internal/quotation/service.go`, `internal/quotation/request.go` e `internal/quotation/handler.go`
-continuam pendentes.
+implementados na Entrega 2 sob o desenho fixado aqui, assim como as mudanças da decisão 3
+(fallback) em `internal/quotation/service.go`, `internal/quotation/request.go` e
+`internal/quotation/handler.go`.
 
 ### Decisão 1: circuit breaker
 
@@ -474,10 +474,14 @@ usa `sleep` ou espera que uma chamada de rede real aconteça no momento certo.
   injetado (uma interface com um método `Now()`), em vez de chamar `time.Now()` diretamente. O teste
   escreve uma entrada, avança o relógio fake para além de 1 hora sem esperar tempo real nenhum, e
   confirma que a leitura seguinte é um miss.
-- **Fallback.** Com o breaker de uma parceira forçado a `StateOpen` pelo dublê acima e uma entrada de
-  cache conhecida no relógio fake, o teste confirma que a resposta final contém a cotação de cache
-  marcada com a idade certa, e que, sem entrada de cache, a parceira aparece na lista de ausentes em vez
-  de a resposta inteira falhar.
+- **Fallback.** `internal/quotation/service_test.go` e `internal/quotation/handler_test.go` testam a
+  montagem da resposta parcial com um dublê de `Quoter` (não o `ResilientQuoter` real): que a
+  parceira que falha é removida de `quotes` e nomeada em `missing_partners`, sem abortar a
+  requisição; que, com as três parceiras falhando, a resposta ainda é `200` com `quotes: []` e as
+  três nomeadas, porque não há piso mínimo; e que `degraded` fica verdadeiro tanto quando falta
+  parceira quanto quando alguma cotação chega com `Origin` `cache` (o dublê simula esse caso, sem
+  passar pelo cache real). Que uma cotação de cache de fato chega com `Origin` `cache` e a idade
+  certa é o que `internal/resilience/quoter_test.go` prova, à parte, sobre o `ResilientQuoter` real.
 
 ### Onde roda
 
