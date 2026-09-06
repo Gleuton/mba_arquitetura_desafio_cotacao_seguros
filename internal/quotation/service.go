@@ -22,7 +22,7 @@ func NewService(partners []platform.Partner, quoter Quoter) *Service {
 	return &Service{partners: partners, quoter: quoter}
 }
 
-func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Response, error) {
+func (s *Service) Quote(ctx context.Context, tenant string, request Request) Response {
 	start := time.Now()
 	forPartner := partnerRequest{Broker: tenant, Request: request}
 
@@ -52,5 +52,5 @@ func (s *Service) Quote(ctx context.Context, tenant string, request Request) (Re
 		MissingPartners: missing,
 		Degraded:        degraded,
 		ElapsedMs:       time.Since(start).Milliseconds(),
-	}, nil
+	}
 }

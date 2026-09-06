@@ -303,10 +303,10 @@ seguradoras honram o prêmio informado por até 24 horas (o teto comercial); o c
 técnico do mock, não o teto de negócio, e os dois não podem ser confundidos. Uma chave sem `tenant_id`
 é incidente de dados pessoais sob a LGPD, não otimização.
 
-O prêmio devolvido pela parceira é gerado por hash de **todo** o corpo enviado a ela
-(`cmd/partner-mock/behavior.go`, `fnv.New64a()` sobre `broker` mais `driver` mais `vehicle` mais
-`coverage`): documento, ano de nascimento, placa, modelo, ano do veículo, valor segurado e cobertura
-entram todos no cálculo. Uma chave de cache que capture só documento e placa devolveria, num acerto, o
+O prêmio devolvido pela parceira é gerado por hash do nome da própria parceira mais **todo** o corpo
+enviado a ela (`cmd/partner-mock/behavior.go`, `fnv.New64a()` sobre `b.cfg.Name` mais `broker`,
+`driver`, `vehicle` e `coverage` do corpo): documento, ano de nascimento, placa, modelo, ano do
+veículo, valor segurado e cobertura entram todos no cálculo. Uma chave de cache que capture só documento e placa devolveria, num acerto, o
 prêmio de outra combinação de motorista e cobertura: teria a marca de tenant certa, mas o valor
 errado.
 
@@ -421,7 +421,7 @@ flowchart TB
   resilient -- "GET quote:v1:...<br/>chamada Go, in-process" --> cache
   cache -- "lê/escreve<br/>RESP" --> redis
   resilient -- "Execute(), se não houve hit fresco<br/>chamada Go, in-process" --> breaker
-  breaker -- "chamada protegida por timeout de 2000ms<br/>chamada Go, in-process" --> client
+  breaker -- "chamada ao cliente, que já aplica o timeout de 2000ms<br/>chamada Go, in-process" --> client
   client -- "POST /quotes<br/>HTTP/JSON" --> partners
   resilient -- "SET quote:v1:..., TTL 1h, se a chamada teve sucesso<br/>chamada Go, in-process" --> cache
 ```
@@ -430,7 +430,10 @@ flowchart TB
 (cache, depois breaker, depois cliente), implementando a mesma interface `Quoter` que `Service` já
 consome hoje, então `internal/quotation/service.go` não precisa mudar sua lógica de orquestração, só a
 montagem da `Response` para acomodar os campos da decisão 3. `cmd/quotation-api/main.go` troca a
-construção de `partner.NewClient()` isolado pela composição `resilient.New(cache, breaker, client)`.
+construção isolada de `partner.NewClient()` por duas composições:
+`resilience.NewBreaker(cfg.Partners, partner.NewClient())` (o cliente HTTP entra como o `Quoter`
+que o breaker protege) e `resilience.NewResilientQuoter(cache, breaker)` (o que o `Service`
+consome).
 
 ### Limites conhecidos, não implementados nesta entrega
 

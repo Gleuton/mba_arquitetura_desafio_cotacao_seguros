@@ -6,12 +6,17 @@ está em [`docs/enunciado.md`](docs/enunciado.md).
 ## 1. Links
 
 - SAD (Solution Architecture Document): [`docs/sad.md`](docs/sad.md).
-- Evidências: [`docs/evidencias/`](docs/evidencias/), com o relatório antes/depois em
-  [`historico-reproduce.md`](docs/evidencias/historico-reproduce.md), a saída de `make test` em
-  [`make-test-antes.md`](docs/evidencias/make-test-antes.md) e
-  [`make-test-depois.md`](docs/evidencias/make-test-depois.md), os traces exportados do Jaeger
-  (`trace-breaker-aberto.json`, `trace-cache-hit.json`) e os gráficos do Prometheus
-  (`breaker-state-depois.png`, `hit-rate-depois.png`, `p95-antes.png`, `p95-depois.png`).
+- Evidências: [`docs/evidencias/`](docs/evidencias/), com as 7 linhas exigidas:
+
+| Evidência                  | Comando / consulta                                                                                                              | O que mostra                                                                                                   | Arquivo                                                                                                                  |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| Relatório antes/depois     | `make down && make reproduce`                                                                                                   | sucesso 50%→100% (baseline) e 60%→100% (carga); p95 de carga 8,01s→196ms                                       | [`historico-reproduce.md`](docs/evidencias/historico-reproduce.md)                                                       |
+| Saída do `make test`       | `make test`                                                                                                                     | 79 testes, 0 falhas, incluindo os que já vinham antes da Entrega 2                                             | [`make-test-antes.md`](docs/evidencias/make-test-antes.md), [`make-test-depois.md`](docs/evidencias/make-test-depois.md) |
+| Trace com breaker aberto   | export JSON do Jaeger                                                                                                           | span `POST /quotes` com `partner.circuit_breaker.short_circuited=true`, sem span de saída para `partner-flaky` | [`trace-breaker-aberto.json`](docs/evidencias/trace-breaker-aberto.json)                                                 |
+| Trace servido de cache     | export JSON do Jaeger                                                                                                           | span `POST /quotes` com `quotation.cache_hit=true`, sem nenhum span de saída HTTP a parceira                   | [`trace-cache-hit.json`](docs/evidencias/trace-cache-hit.json)                                                           |
+| Estado do breaker no tempo | `partner_breaker_state{partner="partner-flaky"}`, janela 12:19:15-12:21:05 UTC (2026-09-06)                                     | degrau aberto(1) → meio aberto(2) → fechado(0)                                                                 | [`breaker-state-depois.png`](docs/evidencias/breaker-state-depois.png)                                                   |
+| Hit rate do cache          | `sum(partner_cache_result_total{result="hit"}) / sum(partner_cache_result_total)`, janela 12:17:08-12:17:25 UTC (2026-09-06)    | sobe de 0% para 91%                                                                                            | [`hit-rate-depois.png`](docs/evidencias/hit-rate-depois.png)                                                             |
+| p95 do `POST /quotes`      | `histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{http_route="/quotes"}[5m])) by (le))`, janela 1h | antes: sobe de ≈2s para ≈9-10s sob carga; depois: achatado em ≈0,23s                                           | [`p95-antes.png`](docs/evidencias/p95-antes.png), [`p95-depois.png`](docs/evidencias/p95-depois.png)                     |
 
 ## 2. Como subir o ambiente e reproduzir esta versão
 

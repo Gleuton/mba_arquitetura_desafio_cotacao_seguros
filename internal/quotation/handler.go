@@ -57,11 +57,7 @@ func (a *API) quote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := a.service.Quote(r.Context(), tenant, request)
-	if err != nil {
-		platform.WriteError(w, http.StatusInternalServerError, "failed to compute the quotation")
-		return
-	}
+	response := a.service.Quote(r.Context(), tenant, request)
 
 	w.Header().Set("X-Tenant-Id", tenant)
 	platform.WriteJSON(w, http.StatusOK, response)

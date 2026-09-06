@@ -62,10 +62,7 @@ func defaultPremiums() map[string]int64 {
 
 func TestQuoteAggregatesTheThreePartnersSortedByPremium(t *testing.T) {
 	quoter := &fakeQuoter{premiums: defaultPremiums()}
-	response, err := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
-	if err != nil {
-		t.Fatalf("Quote: %v", err)
-	}
+	response := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
 
 	if len(response.Quotes) != 3 {
 		t.Fatalf("%d quotes, expected 3", len(response.Quotes))
@@ -91,9 +88,7 @@ func TestQuoteCallsThePartnersSerially(t *testing.T) {
 	quoter := &fakeQuoter{delay: 40 * time.Millisecond, premiums: defaultPremiums()}
 
 	start := time.Now()
-	if _, err := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest()); err != nil {
-		t.Fatalf("Quote: %v", err)
-	}
+	NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
 	elapsed := time.Since(start)
 
 	if minimum := 3 * quoter.delay; elapsed < minimum {
@@ -107,10 +102,7 @@ func TestQuoteCallsThePartnersSerially(t *testing.T) {
 func TestOnePartnerDownReturnsAPartialResponseNamingTheMissingPartner(t *testing.T) {
 	quoter := &fakeQuoter{premiums: defaultPremiums(), failOn: "partner-flaky"}
 
-	response, err := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
-	if err != nil {
-		t.Fatalf("Quote: %v", err)
-	}
+	response := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
 
 	if len(response.Quotes) != 2 {
 		t.Fatalf("%d quotes, expected 2 (the failed partner is dropped, not the whole request)", len(response.Quotes))
@@ -131,10 +123,7 @@ func TestOnePartnerDownReturnsAPartialResponseNamingTheMissingPartner(t *testing
 func TestQuoteWithAllPartnersDownRespondsWithNoQuotesInsteadOfFailing(t *testing.T) {
 	quoter := &fakeQuoter{failAll: true}
 
-	response, err := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
-	if err != nil {
-		t.Fatalf("Quote: %v", err)
-	}
+	response := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
 
 	if len(response.Quotes) != 0 {
 		t.Fatalf("%d quotes, expected 0", len(response.Quotes))
@@ -150,10 +139,7 @@ func TestQuoteWithAllPartnersDownRespondsWithNoQuotesInsteadOfFailing(t *testing
 func TestQuoteMarksResponseDegradedWhenAQuoteComesFromCache(t *testing.T) {
 	quoter := &fakeQuoter{premiums: defaultPremiums(), origins: map[string]string{"partner-flaky": "cache"}}
 
-	response, err := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
-	if err != nil {
-		t.Fatalf("Quote: %v", err)
-	}
+	response := NewService(threePartners, quoter).Quote(context.Background(), "corretora-a", validRequest())
 
 	if len(response.Quotes) != 3 {
 		t.Fatalf("%d quotes, expected 3", len(response.Quotes))
@@ -170,12 +156,8 @@ func TestBrokerGoesInThePartnerRequest(t *testing.T) {
 	quoter := &fakeQuoter{premiums: defaultPremiums()}
 	service := NewService(threePartners[:1], quoter)
 
-	if _, err := service.Quote(context.Background(), "corretora-a", validRequest()); err != nil {
-		t.Fatalf("Quote: %v", err)
-	}
-	if _, err := service.Quote(context.Background(), "corretora-b", validRequest()); err != nil {
-		t.Fatalf("Quote: %v", err)
-	}
+	service.Quote(context.Background(), "corretora-a", validRequest())
+	service.Quote(context.Background(), "corretora-b", validRequest())
 
 	toA, toB := serialize(t, quoter.requests[0]), serialize(t, quoter.requests[1])
 	if toA == toB {
