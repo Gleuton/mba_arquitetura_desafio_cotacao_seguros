@@ -27,6 +27,10 @@ github.com/klauspost/cpuid/v2 v2.2.10 h1:tBs3QSyvjDyFTq3uoc/9xFpCuOsJQFNPiAhYdw2
 github.com/klauspost/cpuid/v2 v2.2.10/go.mod h1:hqwkgyIinND0mEev00jJYCxPNVRVXFQeu1XKlok6oO0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/redis/go-redis/extra/rediscmd/v9 v9.22.0 h1:MQPzEEnpD0BMPufBLABnMYLJVwM7xi7vZ+srO8Nr0s8=
+github.com/redis/go-redis/extra/rediscmd/v9 v9.22.0/go.mod h1:eve0JFcLRwFVj3RA85rrrV5+UJ+K9LDyU7kf2UdSueM=
+github.com/redis/go-redis/extra/redisotel/v9 v9.22.0 h1:t5ul1Gl0o1rYQj5f5bK12G9xcg1niq2ON4yZFjvy1kA=
+github.com/redis/go-redis/extra/redisotel/v9 v9.22.0/go.mod h1:hcS9L2RBBjYXkrfSOF26ZGejgo+yOC+28ZD2fkk3sGs=
 github.com/redis/go-redis/v9 v9.22.0 h1:laDvpYXTJtZLloinw1fA5Kqd6HAEH2XKxOkG/PDq2F0=
 github.com/redis/go-redis/v9 v9.22.0/go.mod h1:y2g0Wj8rQvuK0ELM+oxSudcLtC09JScs98I/X9gRWY4=
 github.com/sony/gobreaker/v2 v2.4.0 h1:g2KJRW1Ubty3+ZOcSEUN7K+REQJdN6yo6XvaML+jptg=
