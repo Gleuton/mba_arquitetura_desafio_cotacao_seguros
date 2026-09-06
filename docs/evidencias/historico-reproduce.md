@@ -118,3 +118,36 @@ chamadas reais em vez de acerto de cache, o suficiente para alcançar a rajada d
 da `partner-flaky` (sequências 49 a 57). Os números de p95/sucesso/vazão que sustentam a comparação
 acima vêm exclusivamente da carga padrão registrada logo acima; o tráfego extra serviu só para as
 evidências de trace e gráfico descritas no README do processo.
+
+## 2026-09-06 — depois, execução isolada para o `p95-depois.png`
+
+O tráfego extra da execução anterior (usado para abrir o circuit breaker) fica na mesma janela de
+1h do Prometheus e polui a consulta `rate([5m])` do p95, arrastando um pico de latência que não é da
+carga padrão. Para capturar o gráfico de p95 limpo, derrubei o ambiente e reproduzi de novo, sem
+nenhum tráfego extra depois.
+
+Comando: `make down && make reproduce`
+
+```
+baseline — 10 requests, 1 in flight, 13:11:21 UTC to 13:11:31 UTC
+  success        10 of 10 (100%)
+  latency        p50 195ms   p95 2.03s   p99 2.03s   max 2.03s
+  throughput     1.0 req/s in 9.97s
+
+load — 200 requests, 50 in flight, 13:11:31 UTC to 13:11:31 UTC
+  success        200 of 200 (100%)
+  latency        p50 1ms   p95 198ms   p99 209ms   max 210ms
+  throughput     893.4 req/s in 223ms
+
+baseline → load
+  p95 latency    2.03s → 198ms   0.1x
+  max latency    2.03s → 210ms   0.1x
+  success        100% → 100%
+  throughput     1.0 → 893.4 req/s
+```
+
+Números batem com a execução anterior (196ms → 198ms, dentro do jitter). `docs/evidencias/p95-depois.png`
+foi capturado logo em seguida, no Prometheus, com
+`histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket{http_route="/quotes"}[5m])) by (le))`,
+janela 1h: a linha sobe suavemente de 0,228 s para 0,230 s e se estabiliza, sem nenhum pico, porque
+nenhum outro tráfego tocou a API nesta janela.
