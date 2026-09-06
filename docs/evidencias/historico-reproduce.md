@@ -59,3 +59,62 @@ baseline → load
 ```
 
 Janela de carga no Prometheus/Jaeger: `23:28:18 UTC` a `23:29:01 UTC` em 2026-09-01.
+
+## 2026-09-06 — depois (circuit breaker, cache e fallback implementados)
+
+Repetição do `make down && make reproduce`, mesma carga padrão (10 de baseline, 200 com 50 em voo),
+agora com os sete commits da Entrega 2 aplicados. Ambiente subido do zero, sem nenhuma entrada de
+cache herdada de execução anterior.
+
+Comando: `make down && make reproduce`
+
+```
+baseline — 10 requests, 1 in flight, 12:17:01 UTC to 12:17:11 UTC
+  success        10 of 10 (100%)
+  latency        p50 195ms   p95 2.03s   p99 2.03s   max 2.03s
+  throughput     1.0 req/s in 9.97s
+
+load — 200 requests, 50 in flight, 12:17:11 UTC to 12:17:11 UTC
+  success        200 of 200 (100%)
+  latency        p50 2ms   p95 196ms   p99 207ms   max 218ms
+  throughput     879.3 req/s in 227ms
+
+baseline → load
+  p95 latency    2.03s → 196ms   0.1x
+  max latency    2.03s → 218ms   0.1x
+  success        100% → 100%
+  throughput     1.0 → 879.3 req/s
+```
+
+Janela de carga no Prometheus/Jaeger: `12:17:01 UTC` a `12:17:11 UTC` em 2026-09-06.
+
+### Comparação direta com o "antes" (2026-09-01, mesma carga)
+
+| Métrica            | Antes            | Depois            | Variação                                    |
+|--------------------|------------------|-------------------|---------------------------------------------|
+| Sucesso (baseline) | 50% (5 de 10)    | 100% (10 de 10)   | +50 p.p. (o fallback fecha os 502)          |
+| Sucesso (carga)    | 60% (120 de 200) | 100% (200 de 200) | +40 p.p.                                    |
+| p95 (baseline)     | 2,03 s           | 2,03 s            | igual (primeira chamada ainda é live, miss) |
+| p95 (carga)        | 8,01 s           | 196 ms            | ≈41x mais rápido (cache aquecido)           |
+| Vazão (carga)      | 8,1 req/s        | 879,3 req/s       | ≈108x                                       |
+
+O p95 da carga bate folgadamente o alvo de RNF-01 (≤ 4 s): o resultado real (196 ms) é melhor que a
+projeção da seção 3 do SAD (≈3,9 s), porque a projeção assumia toda chamada como live (miss de
+cache); com a carga padrão repetindo cinco cotações, a maior parte da fase de carga é servida do
+cache, sem tocar nenhuma parceira. RNF-02 (≥ 98% de disponibilidade) também bate: 100% em vez do
+alvo, porque o fallback (RF-05) fecha os poucos casos em que `partner-flaky` falharia sozinha.
+
+### Nota sobre o degrau do circuit breaker e a curva de hit rate
+
+A carga padrão (5 cotações distintas) não é suficiente para produzir, sozinha, uma rajada de falhas
+na `partner-flaky` nem para gerar volume visível de mudança de estado do breaker: ela é rápida
+e pequena demais para isso, o que é o ponto do "buraco" de cache que está sendo fechado. Para
+capturar a transição fechado → aberto → meio aberto → fechado e a curva de hit rate subindo, rodei
+tráfego adicional com `make load` (`-tenant corretora-b -distinct 20 -concurrency 1`, depois
+`-distinct 5` para fechar o circuito). Isso não altera nenhum perfil de parceira no
+`docker-compose.yml` (`PARTNER_SEED`, `PARTNER_FAILURE_RATE`, latências e degradação continuam os
+defaults do cenário). Só usa um tenant e uma quantidade de cotações distintas diferentes para forçar
+chamadas reais em vez de acerto de cache, o suficiente para alcançar a rajada determinística de falhas
+da `partner-flaky` (sequências 49 a 57). Os números de p95/sucesso/vazão que sustentam a comparação
+acima vêm exclusivamente da carga padrão registrada logo acima; o tráfego extra serviu só para as
+evidências de trace e gráfico descritas no README do processo.
